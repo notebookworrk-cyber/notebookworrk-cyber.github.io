@@ -646,3 +646,15 @@ button.rule-row:hover { padding-left: 8px; }
 .instrument-surface .modal-card { background: var(--bg-elevated); border-color: var(--line); }
 .instrument-surface input[type='range'] { accent-color: var(--accent); }
 .instrument-surface select option { background: var(--surface); color: var(--text); }
+
+/* first run gets the same material */
+.instrument-modal .modal-card { background: #171715; border-color: #34332f; color: #e9e4d9; }
+.instrument-modal .modal-card .display { color: #e9e4d9; }
+.instrument-modal .modal-card .label { color: #e2452a; }
+.instrument-modal .modal-card .muted,
+.instrument-modal .modal-card .dim { color: #8b857a; }
+.instrument-modal .modal-card .input { background: #131211; border-color: #34332f; color: #e9e4d9; }
+.instrument-modal .modal-card .input::placeholder { color: #5f5a52; }
+.instrument-modal .modal-card .btn { border-color: #34332f; color: #e9e4d9; }
+.instrument-modal .modal-card .btn-primary { background: #e2452a; border-color: #e2452a; color: #fff6f0; }
+.instrument-modal .modal-card .btn-quiet { color: #8b857a; }

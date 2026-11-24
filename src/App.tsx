@@ -172,7 +172,7 @@ function Onboarding() {
   }
 
   return (
-    <div className="modal-backdrop" style={{ zIndex: 70 }}>
+    <div className="modal-backdrop instrument-modal" style={{ zIndex: 70 }}>
       <div className="modal-card max-w-[520px]">
         <div className="px-7 pb-8 pt-8">
           <div className="label" style={{ color: 'var(--accent)' }}>First run</div>
