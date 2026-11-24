@@ -15,6 +15,7 @@
     "icons": "node scripts/gen-icons.mjs",
     "check": "npm run typecheck && npm test && npm run build",
     "check:ui": "node scripts/check-ui.mjs",
+    "check:offline": "node scripts/offline-check.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
