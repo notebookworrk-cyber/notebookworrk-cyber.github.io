@@ -1,0 +1,43 @@
+{
+  "name": "meridian",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "postbuild": "node scripts/postbuild.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "typecheck": "tsc --noEmit",
+    "server": "node server/index.mjs",
+    "cert:init": "node server/cert.mjs",
+    "cert:ip": "node server/cert.mjs --ip",
+    "icons": "node scripts/gen-icons.mjs",
+    "check": "npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "dexie": "^4.2.1",
+    "dexie-react-hooks": "^1.1.7",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.5",
+    "web-push": "^4.0.0",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@peculiar/x509": "^1.14.0",
+    "@tailwindcss/vite": "^4.1.17",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.1.1",
+    "tailwindcss": "^4.1.17",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.2",
+    "vite-plugin-pwa": "^1.1.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}
