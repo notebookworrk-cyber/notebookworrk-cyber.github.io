@@ -22,6 +22,7 @@ function download(name: string, content: string, type = 'text/plain') {
 }
 
 export function Settings() {
+  const hosted = window.location.hostname.endsWith('github.io')
   const sync = useSync()
   const dailyGoal = useSetting('dailyGoal', '120')
   const resetHorizon = useSetting('resetHorizon', '14')
@@ -136,35 +137,46 @@ export function Settings() {
             </div>
             <Link to="/" className="etch etch-live">on the dial →</Link>
           </div>
+          {hosted && (
+            <div className="rule-row">
+              <div className="row-primary">
+                <div className="row-title">hosted copy</div>
+                <div className="row-sub">your data stays in this browser — use a backup file to move it</div>
+              </div>
+              <span className="etch etch-dim">offline</span>
+            </div>
+          )}
         </div>
       </section>
 
-      <section className="panel p-6 sm:p-8">
-        <SectionLabel right={
-          <span className="data-sm" style={{ color: sync.status === 'synced' ? 'var(--positive)' : 'var(--text-3)' }}>
-            {sync.status === 'synced' ? 'Connected' : sync.status === 'error' ? 'Error' : 'Offline'}
-          </span>
-        }>LAN sync</SectionLabel>
-        <p className="muted max-w-2xl text-[13px]">Start the sync server on your laptop, then scan the code with your phone. Both devices must be on the same Wi-Fi.</p>
-        <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,1fr)_240px]">
-          <div className="flex flex-col gap-4">
-            <div className="field"><label>Sync server address</label><input className="input" value={url} onChange={(e) => setUrl(e.target.value)} /></div>
-            <div className="field"><label>Pairing token</label><input className="input" value={token} onChange={(e) => setToken(e.target.value)} /></div>
-            <div className="field"><label>Phone address</label><input className="input" value={phoneUrl} onChange={(e) => setPhoneUrl(e.target.value)} /></div>
-            <div className="flex flex-wrap gap-2">
-              <button className="btn btn-primary" onClick={() => void connect()} disabled={busy || !url.trim() || !token.trim()}><Icon name="link" size={14} /> {busy ? 'Connecting…' : 'Connect'}</button>
-              <button className="btn" disabled={sync.status === 'offline' || sync.status === 'syncing'} onClick={() => void syncNow()}><Icon name="sync" size={14} /> Sync now</button>
-              <button className="btn btn-quiet" onClick={() => { void clearPairing(); setToken(''); setMessage('Unpaired.') }}>Unpair</button>
+      {!hosted && (
+        <section className="panel p-6 sm:p-8">
+          <SectionLabel right={
+            <span className="data-sm" style={{ color: sync.status === 'synced' ? 'var(--positive)' : 'var(--text-3)' }}>
+              {sync.status === 'synced' ? 'Connected' : sync.status === 'error' ? 'Error' : 'Offline'}
+            </span>
+          }>LAN sync</SectionLabel>
+          <p className="muted max-w-2xl text-[13px]">Start the sync server on your laptop, then scan the code with your phone. Both devices must be on the same Wi-Fi.</p>
+          <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,1fr)_240px]">
+            <div className="flex flex-col gap-4">
+              <div className="field"><label>Sync server address</label><input className="input" value={url} onChange={(e) => setUrl(e.target.value)} /></div>
+              <div className="field"><label>Pairing token</label><input className="input" value={token} onChange={(e) => setToken(e.target.value)} /></div>
+              <div className="field"><label>Phone address</label><input className="input" value={phoneUrl} onChange={(e) => setPhoneUrl(e.target.value)} /></div>
+              <div className="flex flex-wrap gap-2">
+                <button className="btn btn-primary" onClick={() => void connect()} disabled={busy || !url.trim() || !token.trim()}><Icon name="link" size={14} /> {busy ? 'Connecting…' : 'Connect'}</button>
+                <button className="btn" disabled={sync.status === 'offline' || sync.status === 'syncing'} onClick={() => void syncNow()}><Icon name="sync" size={14} /> Sync now</button>
+                <button className="btn btn-quiet" onClick={() => { void clearPairing(); setToken(''); setMessage('Unpaired.') }}>Unpair</button>
+              </div>
+              <div className="data-sm muted">{sync.message} · last sync {sync.lastSync ? new Date(sync.lastSync).toLocaleTimeString() : '—'} · {sync.conflicts} conflicts resolved</div>
+              {message && <div className="text-[12px]" style={{ color: 'var(--accent)' }}>{message}</div>}
             </div>
-            <div className="data-sm muted">{sync.message} · last sync {sync.lastSync ? new Date(sync.lastSync).toLocaleTimeString() : '—'} · {sync.conflicts} conflicts resolved</div>
-            {message && <div className="text-[12px]" style={{ color: 'var(--accent)' }}>{message}</div>}
+            <div className="flex flex-col items-center gap-3">
+              {qr ? <img src={qr} alt="Pairing QR code" className="border" style={{ borderColor: 'var(--line)' }} /> : <div className="h-[200px] w-[200px] border" style={{ borderColor: 'var(--line)' }} />}
+              <span className="label text-center">Scan on your phone</span>
+            </div>
           </div>
-          <div className="flex flex-col items-center gap-3">
-            {qr ? <img src={qr} alt="Pairing QR code" className="border" style={{ borderColor: 'var(--line)' }} /> : <div className="h-[200px] w-[200px] border" style={{ borderColor: 'var(--line)' }} />}
-            <span className="label text-center">Scan on your phone</span>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section>
         <SectionLabel>Preferences</SectionLabel>
@@ -177,14 +189,14 @@ export function Settings() {
 
       <section className="panel p-6 sm:p-8">
         <SectionLabel>Reminders</SectionLabel>
-        <p className="muted max-w-2xl text-[13px]">In-app alerts, background push to the installed PWA, and calendar alarms for the ones that must ring.</p>
+        <p className="muted max-w-2xl text-[13px]">{hosted ? 'In-app alerts and calendar alarms for the ones that must ring.' : 'In-app alerts, background push to the installed PWA, and calendar alarms for the ones that must ring.'}</p>
         <div className="mt-6 flex flex-wrap gap-2">
           <button className="btn" onClick={() => void requestNotifications().then(setNoticeState)}><Icon name="info" size={14} /> {noticeState === 'granted' ? 'Notifications on' : 'Enable alerts'}</button>
-          <button className={`btn ${pushEnabled ? '' : 'btn-primary'}`} onClick={() => void (pushEnabled
+          {!hosted && <button className={`btn ${pushEnabled ? '' : 'btn-primary'}`} onClick={() => void (pushEnabled
             ? disableBackgroundPush().then(() => { setPushEnabled(false); setMessage('Background push off.') })
             : enableBackgroundPush().then((r) => { setPushEnabled(r.ok); setMessage(r.message) }))}>
             <Icon name="sync" size={14} /> {pushEnabled ? 'Push on' : 'Enable background push'}
-          </button>
+          </button>}
           <button className="btn" onClick={() => void seedReminders(tasks, assessments).then((n) => setMessage(`Added ${n} smart reminders.`))}><Icon name="spark" size={14} /> Create smart reminders</button>
           <button className="btn" onClick={() => download('meridian-reminders.ics', remindersToICS(reminders), 'text/calendar')}><Icon name="calendar" size={14} /> Send to Calendar</button>
         </div>

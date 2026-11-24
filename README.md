@@ -16,6 +16,20 @@ The weekly **Statement** turns that into a shareable receipt — made on your de
 
 ---
 
+## Install on your phone
+
+The hosted copy is at **https://notebookworrk-cyber.github.io/** — no certificate, no firewall, no server needed.
+
+1. Open the URL in **Chrome** on your Android phone.
+2. Add `?demo=1` if you want sample data on first load.
+3. Chrome menu **⋮ → Install app**. Open it from the home screen.
+
+The hosted copy is standalone: your data lives in that browser only. To move data between the hosted copy and the LAN version, use **settings → Your data → Export/Import backup**. The public build deliberately hides LAN sync and background push, since neither can work without the laptop server.
+
+For phone + laptop sync with live push, run `node server/index.mjs` or `start.bat` and use the LAN instructions below instead.
+
+---
+
 ## First-time setup (already done on this machine)
 
 Node 24 and dependencies are installed. If you move the folder:
