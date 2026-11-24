@@ -59,7 +59,8 @@ db.exec(`
 `)
 
 const TABLES = new Set([
-  'courses', 'assessments', 'topics', 'tasks', 'sessions', 'plans', 'settings', 'unlocks', 'reminders',
+  'courses', 'assessments', 'topics', 'tasks', 'sessions', 'plans', 'settings',
+  'unlocks', 'reminders', 'recalls', 'commitments',
 ])
 
 const MIME = {
@@ -74,15 +75,43 @@ const MIME = {
   '.webmanifest': 'application/manifest+json',
 }
 
-function send(res, status, body, type = 'application/json; charset=utf-8') {
+function allowedOrigin(origin) {
+  if (!origin) return true
+  try {
+    const url = new URL(origin)
+    const host = url.hostname
+    const local = host === 'localhost' || host === '127.0.0.1' || /^(10|192\.168|172\.(1[6-9]|2\d|3[01]))\./.test(host)
+    return local && ['http:', 'https:'].includes(url.protocol)
+  } catch {
+    return false
+  }
+}
+
+function send(req, res, status, body, type = 'application/json; charset=utf-8') {
+  const origin = String(req.headers.origin ?? '')
   res.writeHead(status, {
     'Content-Type': type,
-    'Access-Control-Allow-Origin': '*',
+    ...(allowedOrigin(origin) && origin ? { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } : {}),
     'Access-Control-Allow-Headers': 'Content-Type, X-Meridian-Token',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Cache-Control': 'no-store',
+    'Referrer-Policy': 'no-referrer',
+    'X-Content-Type-Options': 'nosniff',
   })
   res.end(typeof body === 'string' ? body : JSON.stringify(body))
+}
+
+// Small per-IP limit. This is a local LAN server, not a public endpoint.
+const hits = new Map()
+function rateLimited(req) {
+  const key = req.socket.remoteAddress ?? 'unknown'
+  const now = Date.now()
+  const entry = hits.get(key) ?? { start: now, count: 0 }
+  if (now - entry.start > 60_000) { entry.start = now; entry.count = 0 }
+  entry.count++
+  hits.set(key, entry)
+  if (hits.size > 500) hits.clear()
+  return entry.count > 180
 }
 
 function authorized(req) {
@@ -97,7 +126,7 @@ function body(req) {
     let raw = ''
     req.on('data', (chunk) => {
       raw += chunk
-      if (raw.length > 20_000_000) req.destroy()
+      if (raw.length > 5_000_000) req.destroy()
     })
     req.on('end', () => {
       try { resolve(raw ? JSON.parse(raw) : {}) } catch (e) { reject(e) }
@@ -110,30 +139,35 @@ function staticFile(req, res, pathname) {
   const clean = decodeURIComponent(pathname).replace(/\\/g, '/')
   const safe = path.normalize(clean).replace(/^(\.\.[/\\])+/, '')
   let file = path.join(DIST_DIR, safe)
-  if (!file.startsWith(DIST_DIR)) return send(res, 403, 'Forbidden', 'text/plain')
+  if (!file.startsWith(DIST_DIR)) return send(req, res, 403, 'Forbidden', 'text/plain')
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(DIST_DIR, 'index.html')
   if (!fs.existsSync(file)) {
-    return send(res, 503, '<h1>Meridian</h1><p>Build the app first: <code>npm run build</code></p>', 'text/html; charset=utf-8')
+    return send(req, res, 503, '<h1>Meridian</h1><p>Build the app first: <code>npm run build</code></p>', 'text/html; charset=utf-8')
   }
   const ext = path.extname(file).toLowerCase()
+  const origin = String(req.headers.origin ?? '')
   res.writeHead(200, {
     'Content-Type': MIME[ext] ?? 'application/octet-stream',
     'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=3600',
-    'Access-Control-Allow-Origin': '*',
+    ...(allowedOrigin(origin) && origin ? { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } : {}),
+    'Referrer-Policy': 'no-referrer',
   })
   fs.createReadStream(file).pipe(res)
 }
 
 const server = http.createServer(async (req, res) => {
   try {
+    if (rateLimited(req)) return send(req, res, 429, { error: 'too many requests' })
     const url = new URL(req.url ?? '/', 'http://localhost')
     const pathname = url.pathname
 
-    if (req.method === 'OPTIONS') return send(res, 204, '')
+    if (req.method === 'OPTIONS') return send(req, res, 204, '')
 
     if (pathname === '/pair') {
       const token = url.searchParams.get('token') ?? ''
-      if (token !== config.token) return send(res, 403, 'Invalid pairing token', 'text/plain')
+      const a = Buffer.from(token)
+      const b = Buffer.from(config.token)
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return send(req, res, 403, 'Invalid pairing token', 'text/plain')
       const encoded = encodeURIComponent(token)
       res.writeHead(302, { Location: `/?pair=${encoded}` })
       return res.end()
@@ -142,7 +176,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/info') {
       const scheme = fs.existsSync(path.join(CERT_DIR, 'meridian-key.pem')) ? 'https' : 'http'
       const ifaces = Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === 'IPv4' && !i.internal)
-      return send(res, 200, {
+      return send(req, res, 200, {
         secure: scheme === 'https',
         lan: ifaces.map((i) => `${scheme}://${i.address}:${PORT}`),
         local: `${scheme}://localhost:${PORT}`,
@@ -153,33 +187,33 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/api/push/key') {
-      return send(res, 200, { publicKey: vapid.publicKey })
+      return send(req, res, 200, { publicKey: vapid.publicKey })
     }
 
     if (pathname === '/api/push/subscribe' && req.method === 'POST') {
-      if (!authorized(req)) return send(res, 401, { error: 'unauthorized' })
+      if (!authorized(req)) return send(req, res, 401, { error: 'unauthorized' })
       const { subscription } = await body(req)
-      if (!subscription?.endpoint) return send(res, 400, { error: 'invalid subscription' })
+      if (!subscription?.endpoint) return send(req, res, 400, { error: 'invalid subscription' })
       const id = crypto.createHash('sha256').update(subscription.endpoint).digest('hex').slice(0, 24)
       db.prepare('INSERT OR REPLACE INTO push_subs (id, subscription) VALUES (?, ?)').run(id, JSON.stringify(subscription))
-      return send(res, 200, { ok: true, id })
+      return send(req, res, 200, { ok: true, id })
     }
 
     if (pathname === '/api/push/unsubscribe' && req.method === 'POST') {
-      if (!authorized(req)) return send(res, 401, { error: 'unauthorized' })
+      if (!authorized(req)) return send(req, res, 401, { error: 'unauthorized' })
       const { endpoint } = await body(req)
       const id = crypto.createHash('sha256').update(String(endpoint ?? '')).digest('hex').slice(0, 24)
       db.prepare('DELETE FROM push_subs WHERE id = ?').run(id)
-      return send(res, 200, { ok: true })
+      return send(req, res, 200, { ok: true })
     }
 
     if (pathname === '/api/health') {
-      if (!authorized(req)) return send(res, 401, { ok: false, error: 'unauthorized' })
-      return send(res, 200, { ok: true, name: 'meridian-sync', version: 1 })
+      if (!authorized(req)) return send(req, res, 401, { ok: false, error: 'unauthorized' })
+      return send(req, res, 200, { ok: true, name: 'meridian-sync', version: 1 })
     }
 
     if (pathname === '/api/push' && req.method === 'POST') {
-      if (!authorized(req)) return send(res, 401, { error: 'unauthorized' })
+      if (!authorized(req)) return send(req, res, 401, { error: 'unauthorized' })
       const payload = await body(req)
       const changes = payload.changes ?? {}
       let applied = 0
@@ -209,23 +243,23 @@ const server = http.createServer(async (req, res) => {
           applied++
         }
       }
-      return send(res, 200, { applied, conflicts, authoritative, cursor: Date.now() })
+      return send(req, res, 200, { applied, conflicts, authoritative, cursor: Date.now() })
     }
 
     if (pathname === '/api/pull') {
-      if (!authorized(req)) return send(res, 401, { error: 'unauthorized' })
+      if (!authorized(req)) return send(req, res, 401, { error: 'unauthorized' })
       const since = Number(url.searchParams.get('since') ?? 0) || 0
       const rows = db.prepare('SELECT table_name, payload FROM changes WHERE updated_at > ? ORDER BY updated_at ASC').all(since)
       const changes = {}
       for (const r of rows) {
         ;(changes[r.table_name] ??= []).push(JSON.parse(r.payload))
       }
-      return send(res, 200, { changes, cursor: Date.now(), count: rows.length })
+      return send(req, res, 200, { changes, cursor: Date.now(), count: rows.length })
     }
 
     return staticFile(req, res, pathname)
   } catch (e) {
-    return send(res, 500, { error: e instanceof Error ? e.message : 'server error' })
+    return send(req, res, 500, { error: e instanceof Error ? e.message : 'server error' })
   }
 })
 

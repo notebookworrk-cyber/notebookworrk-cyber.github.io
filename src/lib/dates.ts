@@ -32,6 +32,11 @@ export function fmtTime(ts: number | null): string {
   return new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
+/** Format minutes-from-midnight (used by fixed commitments). */
+export function fmtMinutes(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+}
+
 export function fmtDate(ts: number | null): string {
   if (ts == null) return 'No date'
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })

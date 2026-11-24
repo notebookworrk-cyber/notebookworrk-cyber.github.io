@@ -1,4 +1,4 @@
-import type { Assessment, Course, Session, Topic } from '../db/types'
+import type { Assessment, Course, Recall, Session, Topic } from '../db/types'
 import { DAY } from './dates'
 
 export interface Leverage {
@@ -7,6 +7,12 @@ export interface Leverage {
   courseId: string
   gain: number
   minutes: number
+}
+
+export interface ReadinessEvidence {
+  label: string
+  value: string
+  state: 'present' | 'missing'
 }
 
 export interface CourseReadiness {
@@ -20,6 +26,10 @@ export interface CourseReadiness {
   done: number
   leverage: Leverage[]
   studiedWeek: number
+  evidence: ReadinessEvidence[]
+  missing: string[]
+  updatedAt: number | null
+  confidenceLabel: 'thin' | 'growing' | 'solid'
 }
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
@@ -45,9 +55,10 @@ export function computeReadiness(input: {
   topics: Topic[]
   assessments: Assessment[]
   sessions: Session[]
+  recalls?: Recall[]
   now?: number
 }): CourseReadiness[] {
-  const { courses, topics, assessments, sessions } = input
+  const { courses, topics, assessments, sessions, recalls = [] } = input
   const now = input.now ?? Date.now()
   const weekAgo = now - 7 * DAY
 
@@ -68,15 +79,47 @@ export function computeReadiness(input: {
       const score = gs == null ? ts : 0.7 * ts + 0.3 * gs
 
       const studiedWeek = sessions
-        .filter((s) => s.deletedAt == null && s.courseId === course.id && s.startedAt >= weekAgo)
+        .filter((s) => s.deletedAt == null && s.mode !== 'break' && s.courseId === course.id && s.startedAt >= weekAgo)
         .reduce((s, x) => s + x.minutes, 0)
       const remaining = ownTopics.filter((t) => t.done === 0).length
       const pace = remaining === 0 ? 1 : clamp01(studiedWeek / (remaining * 35))
 
+      const graded = gs != null
+      const dataPoints = ownTopics.length + (graded ? 2 : 0) + (studiedWeek > 0 ? 1 : 0)
+      const spread = (dataPoints < 3 ? 0.09 : dataPoints < 6 ? 0.065 : 0.05) + (ownTopics.length < 3 ? 0.015 : 0)
       const base = clamp01(0.85 * score + 0.15 * pace)
-      const spread = 0.055 + (ownTopics.length < 3 ? 0.02 : 0)
       const low = Math.round(clamp01(base - spread) * 100)
       const high = Math.round(clamp01(base + spread) * 100)
+
+      const ownRecalls = recalls.filter(
+        (r) => r.deletedAt == null && ownTopics.some((t) => t.id === r.topicId),
+      )
+      const evidence: ReadinessEvidence[] = [
+        {
+          label: 'chapters',
+          value: ownTopics.length ? `${ownTopics.filter((t) => t.done === 1).length} of ${ownTopics.length} done` : 'none recorded',
+          state: ownTopics.length ? 'present' : 'missing',
+        },
+        {
+          label: 'graded work',
+          value: graded ? `${ownAssessments.filter((a) => a.score != null).length} result(s)` : 'no scores entered',
+          state: graded ? 'present' : 'missing',
+        },
+        {
+          label: 'recent study',
+          value: studiedWeek ? `${studiedWeek} min in 7 days` : 'no sessions in 7 days',
+          state: studiedWeek ? 'present' : 'missing',
+        },
+        {
+          label: 'recall attempts',
+          value: ownRecalls.length ? `${ownRecalls.length} recorded` : 'none recorded',
+          state: ownRecalls.length ? 'present' : 'missing',
+        },
+      ]
+      const missing = evidence.filter((e) => e.state === 'missing').map((e) => e.label)
+      const confidenceLabel = missing.length >= 3 ? 'thin' : missing.length >= 2 ? 'growing' : 'solid'
+      const updatedAt = [...ownTopics.map((t) => t.updatedAt), ...ownAssessments.map((a) => a.updatedAt)]
+        .sort((a, b) => b - a)[0] ?? null
 
       const leverage: Leverage[] = ownTopics
         .filter((t) => t.done === 0)
@@ -103,6 +146,10 @@ export function computeReadiness(input: {
         done: ownTopics.filter((t) => t.done === 1).length,
         leverage,
         studiedWeek,
+        evidence,
+        missing,
+        updatedAt,
+        confidenceLabel,
       }
     })
     .filter((r): r is CourseReadiness => r != null)
@@ -114,7 +161,7 @@ export function nextAction(input: {
   assessments: Assessment[]
   courses: Course[]
   readiness: CourseReadiness[]
-}): { title: string; courseId: string | null; minutes: number; reason: string } | null {
+}): { title: string; courseId: string | null; topicId: string | null; minutes: number; reason: string } | null {
   const best = input.readiness.flatMap((r) =>
     r.leverage.slice(0, 1).map((l) => ({ r, l })),
   ).sort((a, b) => {
@@ -125,8 +172,9 @@ export function nextAction(input: {
 
   if (!best) return null
   return {
-    title: `Study ${best.l.title}`,
+    title: best.l.title,
     courseId: best.l.courseId,
+    topicId: best.l.topicId,
     minutes: best.l.minutes,
     reason: `Moves ${best.r.course.name} readiness by about ${best.l.gain}%`,
   }

@@ -5,3 +5,4 @@ certs/
 *.local
 .DS_Store
 data/
+.artifacts/

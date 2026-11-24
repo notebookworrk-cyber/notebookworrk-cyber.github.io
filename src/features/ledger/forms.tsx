@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Field } from '../../app/ui'
 import { db } from '../../db/db'
-import { stamp, touch, uid, type Assessment, type AssessmentKind, type Course, type Task, type Topic } from '../../db/types'
-import { fromLocalInput, toLocalInput, uniqueCourseColors } from '../../lib/dates'
+import { stamp, touch, uid, type Assessment, type AssessmentKind, type Commitment, type CommitmentKind, type Course, type Task, type Topic } from '../../db/types'
+import { fmtMinutes, fromLocalInput, toLocalInput, uniqueCourseColors } from '../../lib/dates'
 
 const KINDS: AssessmentKind[] = ['exam', 'quiz', 'assignment', 'project', 'presentation']
 
@@ -13,9 +13,10 @@ function courseOptions(courses: Course[]) {
   ]
 }
 
-export function TaskForm({ task, courses, onSave }: { task?: Task; courses: Course[]; onSave: () => void }) {
+export function TaskForm({ task, courses, topics = [], onSave }: { task?: Task; courses: Course[]; topics?: Topic[]; onSave: () => void }) {
   const [title, setTitle] = useState(task?.title ?? '')
   const [courseId, setCourseId] = useState(task?.courseId ?? '')
+  const [topicId, setTopicId] = useState(task?.topicId ?? '')
   const [due, setDue] = useState(toLocalInput(task?.dueAt ?? null))
   const [priority, setPriority] = useState(task?.priority ?? 2)
   const [estimate, setEstimate] = useState(task?.estimateMin ?? 30)
@@ -28,6 +29,7 @@ export function TaskForm({ task, courses, onSave }: { task?: Task; courses: Cour
       id: task?.id ?? uid(),
       title: title.trim(),
       courseId: courseId || null,
+      topicId: topicId || null,
       dueAt: fromLocalInput(due),
       priority,
       estimateMin: Math.max(5, Number(estimate) || 30),
@@ -47,9 +49,17 @@ export function TaskForm({ task, courses, onSave }: { task?: Task; courses: Cour
         <input className="input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Review chapter 4" />
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Course"><select className="select" value={courseId} onChange={(e) => setCourseId(e.target.value)}>{courseOptions(courses)}</select></Field>
+        <Field label="Course"><select className="select" value={courseId} onChange={(e) => { setCourseId(e.target.value); setTopicId('') }}>{courseOptions(courses)}</select></Field>
         <Field label="Due"><input className="input" type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} /></Field>
       </div>
+      {topics.length > 0 && (
+        <Field label="Chapter" hint="Links the task to a chapter for estimates and recall">
+          <select className="select" value={topicId} onChange={(e) => setTopicId(e.target.value)}>
+            <option value="">No chapter</option>
+            {topics.filter((t) => !courseId || t.courseId === courseId).map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+          </select>
+        </Field>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <Field label="Priority">
           <select className="select" value={priority} onChange={(e) => setPriority(Number(e.target.value))}>
@@ -161,6 +171,8 @@ export function TopicForm({ topic, courses, onSave }: { topic?: Topic; courses: 
   const [courseId, setCourseId] = useState(topic?.courseId ?? courses[0]?.id ?? '')
   const [title, setTitle] = useState(topic?.title ?? '')
   const [confidence, setConfidence] = useState(topic?.confidence ?? 3)
+  const [estimateMin, setEstimateMin] = useState(topic?.estimateMin ?? 30)
+  const [note, setNote] = useState(topic?.note ?? '')
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -168,6 +180,14 @@ export function TopicForm({ topic, courses, onSave }: { topic?: Topic; courses: 
     const record: Topic = {
       id: topic?.id ?? uid(), courseId, title: title.trim(), confidence,
       done: topic?.done ?? 0,
+      estimateMin: Math.max(5, Number(estimateMin) || 30),
+      note,
+      lastStudiedAt: topic?.lastStudiedAt ?? null,
+      lastRecallAt: topic?.lastRecallAt ?? null,
+      nextReviewAt: topic?.nextReviewAt ?? null,
+      reviewInterval: topic?.reviewInterval ?? 0,
+      recallCount: topic?.recallCount ?? 0,
+      lapses: topic?.lapses ?? 0,
       updatedAt: topic?.updatedAt ?? Date.now(), deletedAt: null, rev: topic?.rev ?? 1,
     }
     await db.topics.put(topic ? touch(record) : stamp(record))
@@ -181,7 +201,70 @@ export function TopicForm({ topic, courses, onSave }: { topic?: Topic; courses: 
       <Field label={`Confidence: ${confidence} / 5`} hint="1 = lost, 5 = could teach it">
         <input className="input" type="range" min={1} max={5} value={confidence} onChange={(e) => setConfidence(Number(e.target.value))} />
       </Field>
+      <Field label="Estimated study time (minutes)" hint="The planner learns from your actual sessions">
+        <input className="input" type="number" min={5} max={180} value={estimateMin} onChange={(e) => setEstimateMin(Number(e.target.value))} />
+      </Field>
+      <Field label="Notes"><textarea className="textarea" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Key ideas, tricky parts, anything worth revisiting…" /></Field>
       <button className="btn btn-primary mt-1" type="submit">{topic ? 'Save changes' : 'Add topic'}</button>
+    </form>
+  )
+}
+
+const COMMITMENT_KINDS: CommitmentKind[] = ['class', 'coaching', 'work', 'personal', 'break', 'travel']
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function timeToMinutes(value: string): number {
+  const [h, m] = value.split(':').map(Number)
+  return (h || 0) * 60 + (m || 0)
+}
+
+export function CommitmentForm({ commitment, onSave }: { commitment?: Commitment; onSave: () => void }) {
+  const [title, setTitle] = useState(commitment?.title ?? '')
+  const [kind, setKind] = useState<CommitmentKind>(commitment?.kind ?? 'class')
+  const [days, setDays] = useState<number[]>(commitment?.days ?? [1, 2, 3, 4, 5])
+  const [start, setStart] = useState(fmtMinutes(commitment?.startMin ?? 9 * 60))
+  const [end, setEnd] = useState(fmtMinutes(commitment?.endMin ?? 17 * 60))
+  const [note, setNote] = useState(commitment?.note ?? '')
+
+  function toggleDay(day: number) {
+    setDays((current) => current.includes(day) ? current.filter((d) => d !== day) : [...current, day].sort())
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!title.trim() || !days.length) return
+    const from = timeToMinutes(start)
+    const to = timeToMinutes(end)
+    if (to <= from) return
+    const record: Commitment = {
+      id: commitment?.id ?? uid(),
+      title: title.trim(), kind, days,
+      startMin: from, endMin: to, note,
+      updatedAt: commitment?.updatedAt ?? Date.now(), deletedAt: null, rev: commitment?.rev ?? 1,
+    }
+    await db.commitments.put(commitment ? touch(record) : stamp(record))
+    onSave()
+  }
+
+  return (
+    <form className="flex flex-col gap-4" onSubmit={submit}>
+      <Field label="What is fixed?"><input className="input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. College lectures" /></Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Type"><select className="select" value={kind} onChange={(e) => setKind(e.target.value as CommitmentKind)}>{COMMITMENT_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</select></Field>
+        <Field label="Note"><input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" /></Field>
+      </div>
+      <Field label="Days">
+        <div className="flex flex-wrap gap-2 pt-1">
+          {DAY_NAMES.map((name, i) => (
+            <button key={name} type="button" className={`chip${days.includes(i) ? ' chip-active' : ''}`} onClick={() => toggleDay(i)} aria-pressed={days.includes(i)}>{name}</button>
+          ))}
+        </div>
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="From"><input className="input" type="time" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
+        <Field label="To"><input className="input" type="time" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
+      </div>
+      <button className="btn btn-primary mt-1" type="submit" disabled={!days.length || timeToMinutes(end) <= timeToMinutes(start)}>{commitment ? 'Save changes' : 'Add fixed block'}</button>
     </form>
   )
 }

@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Modal } from '../../app/ui'
 import { useAssessments, useCourses, useSessions, useTasks, useTopics, useUnlocks } from '../../db/hooks'
 import { minutesToHM } from '../../lib/dates'
 import { computeReadiness, nextAction } from '../../lib/readiness'
 import { streakDays } from '../../lib/stats'
 import { displayTime, elapsedMs, useTimer } from '../focus/timer'
+import { RecoveryDialog } from '../focus/RecoveryDialog'
+import { AudioPanel } from '../audio/AudioPanel'
 import { DIAL_MAX, DIAL_MIN, Dial } from './Dial'
 import { soundOn, toggleSound } from './feedback'
 
@@ -25,6 +28,7 @@ export function Instrument() {
   const topics = useTopics()
   const sessions = useSessions()
   const unlocks = useUnlocks()
+  const [params, setParams] = useSearchParams()
 
   const timer = useTimer()
   const setDuration = useTimer((s) => s.setDuration)
@@ -33,12 +37,15 @@ export function Instrument() {
   const pause = useTimer((s) => s.pause)
   const resumeOrStart = useTimer((s) => s.resumeOrStart)
   const stopAndSave = useTimer((s) => s.stopAndSave)
+  const setTopic = useTimer((s) => s.setTopic)
   const lastSavedAt = useTimer((s) => s.lastSavedAt)
 
   const [sel, setSel] = useState(0)
   const [sound, setSound] = useState(soundOn)
   const [notice, setNotice] = useState<string | null>(null)
+  const [notesOpen, setNotesOpen] = useState(false)
   const seenSaved = useRef(lastSavedAt)
+  const autoStarted = useRef(false)
 
   const readiness = useMemo(
     () => computeReadiness({ courses, topics, assessments, sessions }),
@@ -58,7 +65,7 @@ export function Instrument() {
         courseId: l.courseId,
         minutes: l.minutes,
         gain: l.gain,
-        isNext: suggestion?.title === `Study ${l.title}`,
+        isNext: suggestion?.topicId === l.topicId,
         examDays: r.examDays ?? 999,
       })),
     )
@@ -92,6 +99,19 @@ export function Instrument() {
   }, [current?.key, engaged])
 
   useEffect(() => {
+    if (autoStarted.current || params.get('start') !== '1') return
+    autoStarted.current = true
+    setParams({}, { replace: true })
+    const s = useTimer.getState()
+    if (!s.running && s.accumulatedMs === 0) {
+      const topic = topics.find((t) => t.id === current?.key)
+      start('focus', Math.max(DIAL_MIN, s.durationMin), current?.courseId ?? courses[0]?.id ?? null, topic?.id ?? null, topic?.title ?? '')
+    }
+    // Intentional one-shot launch from Today or the command palette.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params])
+
+  useEffect(() => {
     if (!lastSavedAt || lastSavedAt === seenSaved.current) return
     seenSaved.current = lastSavedAt
     setNotice('minutes banked')
@@ -104,9 +124,7 @@ export function Instrument() {
   const minutes = Math.min(DIAL_MAX, Math.max(DIAL_MIN, timer.durationMin))
   const progress = engaged ? left / total : minutes / DIAL_MAX
 
-  const display = engaged
-    ? displayTime(timer)
-    : String(timer.durationMin).padStart(2, '0')
+  const display = engaged ? displayTime(timer) : String(timer.durationMin).padStart(2, '0')
   const caption = running ? 'left' : engaged ? 'paused' : 'min'
   const hint = running
     ? 'press to pause · hold to bank'
@@ -114,20 +132,15 @@ export function Instrument() {
       ? 'press to resume · hold to bank'
       : 'turn to set · press to begin'
 
-  const dateLabel = new Date()
-    .toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
-    .toLowerCase()
+  const dateLabel = new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }).toLowerCase()
   const exam = readiness[0]?.exam
   const examDays = readiness[0]?.examDays
   const examCourse = exam ? courses.find((c) => c.id === exam.courseId) : null
-  const examLine = exam
-    ? `${examCourse?.code || examCourse?.name || 'exam'} · ${examDays}d`
-    : 'no exam set'
-  const banked =
-    sessions.reduce((s, x) => s + x.minutes, 0) - unlocks.reduce((s, x) => s + x.minutes, 0)
+  const examLine = exam ? `${examCourse?.code || examCourse?.name || 'exam'} · ${examDays}d` : 'no exam set'
+  const banked = sessions.reduce((s, x) => s + (x.mode === 'break' ? 0 : x.minutes), 0) - unlocks.reduce((s, x) => s + x.minutes, 0)
   const streak = streakDays(sessions)
   const todayStart = new Date().setHours(0, 0, 0, 0)
-  const todayBlocks = sessions.filter((s) => s.startedAt >= todayStart && s.deletedAt == null)
+  const todayBlocks = sessions.filter((s) => s.startedAt >= todayStart && s.mode !== 'break' && s.deletedAt == null)
   const todayMin = todayBlocks.reduce((s, x) => s + x.minutes, 0)
 
   function turn(next: number) {
@@ -142,7 +155,9 @@ export function Instrument() {
     } else if (s.accumulatedMs > 0) {
       resumeOrStart()
     } else {
-      start('focus', Math.max(DIAL_MIN, s.durationMin), current?.courseId ?? courses[0]?.id ?? null)
+      const topic = topics.find((t) => t.id === current?.key)
+      start('focus', Math.max(DIAL_MIN, s.durationMin), current?.courseId ?? courses[0]?.id ?? null, topic?.id ?? null, topic?.title ?? '')
+      setTopic(topic?.id ?? null, topic?.title ?? '')
     }
   }
 
@@ -152,22 +167,22 @@ export function Instrument() {
 
   return (
     <div className={`instrument-surface${engaged ? ' is-engaged' : ''}`}>
+      <RecoveryDialog />
       <div className="instrument-wrap">
         <header className="instrument-head">
-          <div className="instrument-wordmark">
+          <Link to="/" className="instrument-wordmark" style={{ textDecoration: 'none' }}>
             <svg width="14" height="22" viewBox="0 0 14 22" fill="none" aria-hidden="true">
               <path d="M7 1v20" stroke="currentColor" strokeWidth="1" opacity=".45" />
               <circle cx="7" cy="15" r="2.6" fill="currentColor" />
             </svg>
             <span>meridian</span>
+          </Link>
+          <div className="flex items-center gap-3">
+            <button className="etch etch-dim instrument-sound" onClick={() => setSound(toggleSound())} aria-label="Toggle dial sound">
+              {sound ? 'sound on' : 'sound off'}
+            </button>
+            <Link to="/studio" className="etch etch-live">studio →</Link>
           </div>
-          <button
-            className="etch etch-dim instrument-sound"
-            onClick={() => setSound(toggleSound())}
-            aria-label="Toggle dial sound"
-          >
-            {sound ? 'sound on' : 'sound off'}
-          </button>
         </header>
 
         <div className="instrument-strip">
@@ -190,11 +205,7 @@ export function Instrument() {
 
           <div className="instrument-chapter">
             {current ? (
-              <button
-                className="chapter-title"
-                onClick={() => setSel((sel + 1) % rack.length)}
-                title="Cycle through chapters"
-              >
+              <button className="chapter-title" onClick={() => setSel((sel + 1) % rack.length)} title="Cycle through chapters">
                 {current.title}
               </button>
             ) : (
@@ -209,12 +220,7 @@ export function Instrument() {
 
           <div className="instrument-rack">
             {rack.map((item, i) => (
-              <button
-                key={item.key}
-                className={`rack-line${i === sel ? ' is-selected' : ''}`}
-                onClick={() => setSel(i)}
-                aria-pressed={i === sel}
-              >
+              <button key={item.key} className={`rack-line${i === sel ? ' is-selected' : ''}`} onClick={() => setSel(i)} aria-pressed={i === sel}>
                 <span className="rack-mark">{i === sel ? '▸' : '·'}</span>
                 <span className="rack-name">{item.title}</span>
                 <span className="rack-gain">{item.gain ? `+${item.gain}%` : `${item.minutes}m`}</span>
@@ -223,18 +229,30 @@ export function Instrument() {
           </div>
 
           <div className="etch etch-dim instrument-hint">{notice ?? hint}</div>
-          <div className="etch etch-dim instrument-today">
-            today · {todayBlocks.length} block{todayBlocks.length === 1 ? '' : 's'} · {todayMin}m
-          </div>
+          <button className="etch etch-dim instrument-today" onClick={() => setNotesOpen(true)}>
+            today · {todayBlocks.length} block{todayBlocks.length === 1 ? '' : 's'} · {todayMin}m · notes +
+          </button>
         </div>
+
+        <div className="instrument-audio"><AudioPanel compact /></div>
 
         <footer className="instrument-rail">
           <Link to="/plan">plan</Link>
+          <Link to="/review">review</Link>
           <Link to="/progress">progress</Link>
           <Link to="/block?app=instagram">shield</Link>
           <Link to="/settings">settings</Link>
         </footer>
       </div>
+
+      <Modal open={notesOpen} onClose={() => setNotesOpen(false)} title="Session notes">
+        <div className="field">
+          <label>Notes for this block</label>
+          <textarea className="textarea min-h-[160px]" value={timer.note} onChange={(e) => useTimer.getState().setNote(e.target.value)} placeholder="What are you working on?" />
+        </div>
+        <p className="dim mt-4 text-[12px]">Notes are saved with the session when you hold to bank or finish in the studio.</p>
+        <button className="btn btn-primary mt-6" onClick={() => setNotesOpen(false)}>Done</button>
+      </Modal>
     </div>
   )
 }

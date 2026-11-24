@@ -8,14 +8,14 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['favicon.svg'],
       manifest: {
         name: 'Meridian — the line between now and later',
         short_name: 'Meridian',
         description: 'See what to do next, what it is worth, and what distraction costs.',
-        theme_color: '#f5f2ea',
-        background_color: '#f5f2ea',
+        theme_color: '#121211',
+        background_color: '#121211',
         display: 'standalone',
         orientation: 'any',
         start_url: '/',

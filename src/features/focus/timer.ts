@@ -1,9 +1,19 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { db } from '../../db/db'
-import { stamp, type ID, type FocusMode, type Session } from '../../db/types'
+import { stamp, uid, type FocusMode, type ID, type Session } from '../../db/types'
 
 export type TimerMode = 'focus' | 'break' | 'stopwatch'
+
+const HOUR = 3_600_000
+const MAX_SESSION = 4 * HOUR
+const MAX_WALL = 6 * HOUR
+
+export interface TimerRecovery {
+  ms: number
+  wall: number
+  at: number
+}
 
 interface TimerState {
   mode: TimerMode
@@ -12,18 +22,33 @@ interface TimerState {
   startedAt: number | null
   accumulatedMs: number
   courseId: ID | null
+  topicId: ID | null
+  topicTitle: string
+  plannedMin: number
+  firstStartedAt: number | null
+  note: string
+  difficulty: number
+  confidenceAfter: number
+  completed: number
+  recovery: TimerRecovery | null
   lastSavedAt: number | null
-  start: (mode: TimerMode, minutes: number, courseId?: ID | null) => void
+  start: (mode: TimerMode, minutes: number, courseId?: ID | null, topicId?: ID | null, topicTitle?: string) => void
   setMode: (mode: TimerMode) => void
   resumeOrStart: () => void
   pause: () => void
   resume: () => void
   reset: () => void
   setCourse: (id: ID | null) => void
+  setTopic: (id: ID | null, title?: string) => void
   setDuration: (minutes: number) => void
   retime: (minutes: number) => void
   tick: () => void
   stopAndSave: () => Promise<Session | null>
+  setNote: (note: string) => void
+  setReflection: (note: string, difficulty: number, confidenceAfter: number) => void
+  reconcile: () => void
+  keepRecovery: () => Promise<Session | null>
+  discardRecovery: () => void
 }
 
 export function elapsedMs(s: Pick<TimerState, 'running' | 'startedAt' | 'accumulatedMs'>): number {
@@ -35,20 +60,50 @@ export function remainingSeconds(s: TimerState): number {
   return Math.max(0, Math.ceil((total - elapsedMs(s)) / 1000))
 }
 
-function clear(): Pick<TimerState, 'running' | 'startedAt' | 'accumulatedMs'> {
-  return { running: false, startedAt: null, accumulatedMs: 0 }
+function clear(): Pick<TimerState, 'running' | 'startedAt' | 'accumulatedMs' | 'firstStartedAt' | 'recovery'> {
+  return { running: false, startedAt: null, accumulatedMs: 0, firstStartedAt: null, recovery: null }
 }
 
-function sessionFrom(s: TimerState, ms: number, endedAt = Date.now()): Session {
-  return stamp({
-    id: crypto.randomUUID(),
+/** One write per completion, even if tick and hold-to-bank fire together. */
+let saving: Promise<Session | null> | null = null
+
+function commit(s: TimerState, ms: number, endedAt: number, completed: boolean): Promise<Session | null> {
+  if (saving) return saving
+  if (ms < 60_000) {
+    useTimer.setState({ ...clear(), lastSavedAt: null })
+    return Promise.resolve(null)
+  }
+  const session: Session = stamp({
+    id: uid(),
     courseId: s.courseId,
+    topicId: s.topicId,
     mode: s.mode as FocusMode,
-    startedAt: endedAt - ms,
+    // The true first start, so pauses no longer shift the block on the timeline.
+    startedAt: s.firstStartedAt ?? endedAt - ms,
     endedAt,
     minutes: Math.max(1, Math.round(ms / 60_000)),
-    note: '',
+    note: s.note,
+    plannedMin: s.plannedMin || s.durationMin,
+    completed: completed ? 1 : 0,
+    difficulty: s.difficulty,
+    confidenceAfter: s.confidenceAfter,
   })
+  saving = db.sessions.add(session)
+    .then(() => {
+      useTimer.setState({
+        ...clear(),
+        note: '',
+        difficulty: 0,
+        confidenceAfter: 0,
+        completed: 0,
+        lastSavedAt: Date.now(),
+      })
+      return session
+    })
+    .finally(() => {
+      saving = null
+    })
+  return saving
 }
 
 export const useTimer = create<TimerState>()(
@@ -60,22 +115,45 @@ export const useTimer = create<TimerState>()(
       startedAt: null,
       accumulatedMs: 0,
       courseId: null,
+      topicId: null,
+      topicTitle: '',
+      plannedMin: 25,
+      firstStartedAt: null,
+      note: '',
+      difficulty: 0,
+      confidenceAfter: 0,
+      completed: 0,
+      recovery: null,
       lastSavedAt: null,
-      start: (mode, minutes, courseId = null) =>
+
+      start: (mode, minutes, courseId = null, topicId = null, topicTitle = '') =>
         set({
           mode,
           durationMin: Math.max(1, minutes),
+          plannedMin: Math.max(1, minutes),
           courseId,
+          topicId,
+          topicTitle,
           running: true,
           startedAt: Date.now(),
+          firstStartedAt: Date.now(),
           accumulatedMs: 0,
+          note: '',
+          difficulty: 0,
+          confidenceAfter: 0,
+          completed: 0,
+          recovery: null,
         }),
-      setMode: (mode) => set({ mode, ...clear() }),
+      setMode: (mode) => set({ mode, ...clear(), topicId: null, topicTitle: '' }),
       resumeOrStart: () => {
         const s = get()
         if (s.running) return
-        if (s.accumulatedMs > 0) set({ running: true, startedAt: Date.now() })
-        else set({ running: true, startedAt: Date.now(), accumulatedMs: 0 })
+        set({
+          running: true,
+          startedAt: Date.now(),
+          firstStartedAt: s.firstStartedAt ?? Date.now(),
+          accumulatedMs: s.accumulatedMs,
+        })
       },
       pause: () => {
         const s = get()
@@ -85,10 +163,15 @@ export const useTimer = create<TimerState>()(
       resume: () => {
         const s = get()
         if (s.running) return
-        set({ running: true, startedAt: Date.now() })
+        set({
+          running: true,
+          startedAt: Date.now(),
+          firstStartedAt: s.firstStartedAt ?? Date.now(),
+        })
       },
-      reset: () => set(clear()),
+      reset: () => set({ ...clear(), note: '', difficulty: 0, confidenceAfter: 0 }),
       setCourse: (courseId) => set({ courseId }),
+      setTopic: (topicId, topicTitle = '') => set({ topicId, topicTitle }),
       setDuration: (durationMin) => {
         const s = get()
         if (s.running) return
@@ -101,25 +184,41 @@ export const useTimer = create<TimerState>()(
       },
       tick: () => {
         const s = get()
-        if (!s.running || s.mode === 'stopwatch') return
-        if (remainingSeconds(s) <= 0) {
-          const ms = elapsedMs(s)
-          set({ ...clear(), lastSavedAt: Date.now() })
-          if (ms >= 60_000) void db.sessions.add(sessionFrom(s, ms))
-        }
+        if (!s.running || s.mode === 'stopwatch' || s.recovery) return
+        if (remainingSeconds(s) <= 0) void commit(s, elapsedMs(s), Date.now(), true)
       },
-      stopAndSave: async () => {
+      stopAndSave: () => {
         const s = get()
-        const ms = elapsedMs(s)
-        if (ms < 60_000) {
-          set(clear())
-          return null
-        }
-        const session = sessionFrom(s, ms)
-        await db.sessions.add(session)
-        set({ ...clear(), lastSavedAt: Date.now() })
-        return session
+        return commit(s, elapsedMs(s), Date.now(), false)
       },
+      setNote: (note) => set({ note }),
+      setReflection: (note, difficulty, confidenceAfter) => set({ note, difficulty, confidenceAfter }),
+
+      /** Called once at startup: a session suspended for hours must not bank days. */
+      reconcile: () => {
+        const s = get()
+        if (!s.running || s.startedAt == null || s.recovery) return
+        const wall = Date.now() - s.startedAt
+        if (wall < 0) {
+          set({ startedAt: Date.now() })
+          return
+        }
+        const elapsed = elapsedMs(s)
+        if (wall > MAX_WALL || elapsed > MAX_SESSION) {
+          set({
+            running: false,
+            startedAt: null,
+            accumulatedMs: Math.min(elapsed, MAX_SESSION),
+            recovery: { ms: Math.min(elapsed, MAX_SESSION), wall, at: Date.now() },
+          })
+        }
+      },
+      keepRecovery: () => {
+        const s = get()
+        if (!s.recovery) return Promise.resolve(null)
+        return commit(s, s.recovery.ms, Date.now(), false)
+      },
+      discardRecovery: () => set({ ...clear(), note: '', difficulty: 0, confidenceAfter: 0 }),
     }),
     {
       name: 'meridian:timer',
@@ -130,6 +229,15 @@ export const useTimer = create<TimerState>()(
         startedAt: s.startedAt,
         accumulatedMs: s.accumulatedMs,
         courseId: s.courseId,
+        topicId: s.topicId,
+        topicTitle: s.topicTitle,
+        plannedMin: s.plannedMin,
+        firstStartedAt: s.firstStartedAt,
+        note: s.note,
+        difficulty: s.difficulty,
+        confidenceAfter: s.confidenceAfter,
+        completed: s.completed,
+        recovery: s.recovery,
         lastSavedAt: s.lastSavedAt,
       }),
     },

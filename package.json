@@ -13,7 +13,10 @@
     "cert:init": "node server/cert.mjs",
     "cert:ip": "node server/cert.mjs --ip",
     "icons": "node scripts/gen-icons.mjs",
-    "check": "npm run typecheck && npm run build"
+    "check": "npm run typecheck && npm test && npm run build",
+    "check:ui": "node scripts/check-ui.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "dexie": "^4.2.1",
@@ -32,10 +35,14 @@
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.1.1",
+    "fake-indexeddb": "^6.2.8",
+    "jsdom": "^31.0.1",
+    "playwright-core": "^1.65.1",
     "tailwindcss": "^4.1.17",
     "typescript": "~5.9.3",
     "vite": "^7.2.2",
-    "vite-plugin-pwa": "^1.1.0"
+    "vite-plugin-pwa": "^1.1.0",
+    "vitest": "^5.1.1"
   },
   "allowScripts": {
     "esbuild@0.28.2": true

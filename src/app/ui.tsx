@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 import { Icon } from './icons'
 import type { IconName } from './icons'
 
@@ -21,7 +21,7 @@ export function PageHeader({
           <h1 className="display display-lg">{title}</h1>
           {subtitle && <p className="muted mt-4 max-w-2xl text-[14px]">{subtitle}</p>}
         </div>
-        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+        {actions && <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>
     </header>
   )
@@ -58,17 +58,42 @@ export function Modal({
   children: ReactNode
   wide?: boolean
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const previous = document.activeElement as HTMLElement | null
+    document.body.classList.add('modal-open')
+    const dialog = dialogRef.current
+    const focusable = () =>
+      [...(dialog?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      ) ?? [])]
+    const id = window.setTimeout(() => focusable()[0]?.focus(), 20)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onClose(); return }
+      if (e.key !== 'Tab') return
+      const items = focusable()
+      if (!items.length) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.clearTimeout(id)
+      window.removeEventListener('keydown', onKey)
+      document.body.classList.remove('modal-open')
+      previous?.focus()
+    }
   }, [open, onClose])
 
   if (!open) return null
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div
+        ref={dialogRef}
         className="modal-card"
         style={{ maxWidth: wide ? 720 : 520 }}
         onMouseDown={(e) => e.stopPropagation()}

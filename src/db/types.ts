@@ -30,31 +30,77 @@ export interface Assessment extends SyncedRecord {
   note: string
 }
 
+/** A chapter. New fields are optional so pre-v3 records upgrade without fabrication. */
 export interface Topic extends SyncedRecord {
   courseId: ID
   title: string
   confidence: number
   done: number
+  note?: string
+  estimateMin?: number
+  lastStudiedAt?: number | null
+  lastRecallAt?: number | null
+  nextReviewAt?: number | null
+  reviewInterval?: number
+  recallCount?: number
+  lapses?: number
 }
 
 export interface Task extends SyncedRecord {
   title: string
   courseId: ID | null
+  topicId?: ID | null
   dueAt: number | null
   priority: number
   estimateMin: number
   done: number
   note: string
+  /** 'manual' | 'rebuild:<id>' | 'rescue:<id>' — generated blocks can be replaced safely. */
+  source?: string
+  planId?: string
 }
 
 export type FocusMode = 'focus' | 'stopwatch' | 'break'
 
 export interface Session extends SyncedRecord {
   courseId: ID | null
+  topicId?: ID | null
   mode: FocusMode
   startedAt: number
   endedAt: number
   minutes: number
+  note: string
+  plannedMin?: number
+  completed?: number
+  difficulty?: number
+  confidenceAfter?: number
+}
+
+export type RecallRating = 0 | 1 | 2 | 3
+export type RecallMethod = 'explain' | 'written' | 'questions' | 'confidence'
+
+/** One active-recall attempt. The only source of revision scheduling truth. */
+export interface Recall extends SyncedRecord {
+  topicId: ID
+  courseId: ID | null
+  at: number
+  rating: RecallRating
+  method: RecallMethod
+  answer: string
+  confidenceAfter: number
+  nextDueAt: number
+  intervalDays: number
+}
+
+export type CommitmentKind = 'class' | 'coaching' | 'work' | 'personal' | 'break' | 'travel'
+
+/** A fixed weekly commitment. Times are minutes from midnight; days are 0=Sun…6=Sat. */
+export interface Commitment extends SyncedRecord {
+  title: string
+  kind: CommitmentKind
+  days: number[]
+  startMin: number
+  endMin: number
   note: string
 }
 
@@ -76,7 +122,7 @@ export interface Unlock extends SyncedRecord {
   context: string
 }
 
-export type ReminderKind = 'task' | 'exam' | 'goal' | 'streak' | 'session' | 'custom'
+export type ReminderKind = 'task' | 'exam' | 'goal' | 'streak' | 'session' | 'revision' | 'custom'
 
 export interface Reminder extends SyncedRecord {
   title: string

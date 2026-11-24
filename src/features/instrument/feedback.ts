@@ -1,21 +1,40 @@
 let ctx: AudioContext | null = null
 let enabled = typeof localStorage !== 'undefined' && localStorage.getItem('meridian:instrument-sound') !== 'off'
+let hapticsEnabled = typeof localStorage !== 'undefined' && localStorage.getItem('meridian:instrument-haptics') !== 'off'
 
 export function soundOn(): boolean {
   return enabled
 }
 
-export function toggleSound(): boolean {
-  enabled = !enabled
+export function setSoundEnabled(value: boolean): void {
+  enabled = value
   try {
-    localStorage.setItem('meridian:instrument-sound', enabled ? 'on' : 'off')
+    localStorage.setItem('meridian:instrument-sound', value ? 'on' : 'off')
   } catch {
     /* storage unavailable */
   }
+}
+
+export function toggleSound(): boolean {
+  setSoundEnabled(!enabled)
   return enabled
 }
 
+export function hapticsOn(): boolean {
+  return hapticsEnabled
+}
+
+export function setHapticsEnabled(value: boolean): void {
+  hapticsEnabled = value
+  try {
+    localStorage.setItem('meridian:instrument-haptics', value ? 'on' : 'off')
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 export function haptic(ms = 8): void {
+  if (!hapticsEnabled) return
   try {
     navigator.vibrate?.(ms)
   } catch {
