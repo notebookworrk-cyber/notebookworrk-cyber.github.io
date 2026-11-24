@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../../app/icons'
 import { CourseDot, PageHeader, SectionLabel, Segmented } from '../../app/ui'
-import { useAssessments, useCourses, useRecalls, useSessions, useTasks, useTopics, useUnlocks } from '../../db/hooks'
+import { useAssessments, useCommitments, useCourses, useRecalls, useSessions, useSetting, useTasks, useTopics, useUnlocks } from '../../db/hooks'
 import { dayKey, minutesToHM } from '../../lib/dates'
 import {
   completionRate,
@@ -17,6 +17,7 @@ import {
   weeklyTotal,
 } from '../../lib/stats'
 import { computeReadiness } from '../../lib/readiness'
+import { computeDeficit } from '../../lib/deficit'
 import { estimateAccuracy } from '../../lib/estimate'
 import { formatBalance } from '../../lib/cost'
 import { download } from '../../lib/download'
@@ -53,6 +54,12 @@ export function Progress() {
   const [courseId, setCourseId] = useState('')
   const [expected, setExpected] = useState<Record<string, number>>({})
   const [busy, setBusy] = useState(false)
+  const commitments = useCommitments()
+  const hoursPerDay = Number(useSetting('resetHours', '2.5')) || 2.5
+  const deficit = useMemo(
+    () => computeDeficit({ topics, assessments, commitments, hoursPerDay }),
+    [topics, assessments, commitments, hoursPerDay],
+  )
 
   const readiness = useMemo(
     () => computeReadiness({ courses, topics, assessments, sessions, recalls }),
@@ -193,8 +200,30 @@ export function Progress() {
       />
 
       {tab === 'readiness' && (
-        <div className="mt-12 grid gap-12 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="mt-10 grid gap-12 lg:grid-cols-[minmax(0,1fr)_320px]">
           <section>
+            <div className="forecast-hero">
+              <div className="label">The line · where the time and the evidence meet</div>
+              <div className="forecast-number">
+                {deficit
+                  ? deficit.gapMin > 0
+                    ? `${Math.ceil(deficit.gapMin / 60)} hours short`
+                    : `${Math.ceil(Math.max(0, -deficit.gapMin) / 60)} hours of slack`
+                  : 'No chapters left to place'}
+              </div>
+              <div className="forecast-range">
+                <span className="data-sm dim">Usable</span>
+                <div className="forecast-track">
+                  <i style={{ width: `${deficit ? Math.min(100, (deficit.usableMin / Math.max(1, deficit.requiredMin)) * 100) : 100}%` }} />
+                </div>
+                <span className="data-sm dim">Needed</span>
+              </div>
+              <p className="muted mt-4 text-[13px]">
+                {deficit
+                  ? `${Math.round(deficit.usableMin / 60)} h available before ${deficit.exam?.title ?? 'the next two weeks'} against ${Math.round(deficit.requiredMin / 60)} h of chapter estimates. Readiness band: ${readiness[0] ? `${readiness[0].low}–${readiness[0].high}% for ${readiness[0].course.name}` : 'not enough evidence yet'}. Estimates, not grades.`
+                  : 'Add a chapter in Plan to make the line visible.'}
+              </p>
+            </div>
             <SectionLabel>Readiness by course · an estimate, not a prediction</SectionLabel>
             <div className="flex flex-col">
               {readiness.map((r) => (

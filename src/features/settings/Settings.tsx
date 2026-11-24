@@ -53,7 +53,15 @@ export function Settings() {
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [resetOpen, setResetOpen] = useState(false)
   const [clearTable, setClearTable] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
   const importRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const q = query.trim().toLowerCase()
+    document.querySelectorAll<HTMLElement>('.settings-panel > section').forEach((section) => {
+      section.hidden = q.length > 1 && !(section.textContent ?? '').toLowerCase().includes(q)
+    })
+  }, [query])
 
   useEffect(() => {
     void (async () => {
@@ -126,16 +134,33 @@ export function Settings() {
       for (const t of TABLES) await db[t].clear()
     })
     await db.meta.clear()
+    await db.files.clear()
     setResetOpen(false)
-    setMessage('All local records were cleared.')
+    setMessage('All local records and imported files were cleared.')
   }
 
   return (
     <div className="fade-in">
       <PageHeader eyebrow="Settings · yours to keep" title="The instrument, calibrated." subtitle="Everything here lives on this device. No account, no cloud, no tracking." />
 
-      <div className="mt-12 flex flex-col gap-14">
-        <section>
+      <div className="settings-layout mt-10">
+        <nav className="settings-nav" aria-label="Settings sections">
+          <a href="#set-profile">You</a>
+          <a href="#set-appearance">Appearance</a>
+          <a href="#set-focus">Focus</a>
+          <a href="#set-notices">Notices</a>
+          <a href="#set-privacy">Privacy</a>
+          {!hosted && <a href="#set-devices">Devices</a>}
+          <a href="#set-data">Data</a>
+          <a href="#set-about">About</a>
+        </nav>
+        <div className="settings-panel">
+          <div className="setting-search">
+            <Icon name="spark" size={14} />
+            <input className="input" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a setting…" aria-label="Find a setting" />
+          </div>
+
+        <section id="set-profile">
           <SectionLabel>Profile</SectionLabel>
           <div className="rule-list">
             <Row title="Display name" note="Used only in this browser"><input className="input max-w-[280px]" defaultValue={displayName} onBlur={(e) => void setSetting('displayName', e.target.value)} placeholder="Your name" /></Row>
@@ -147,7 +172,7 @@ export function Settings() {
           </div>
         </section>
 
-        <section>
+        <section id="set-appearance">
           <SectionLabel>Appearance</SectionLabel>
           <div className="rule-list">
             <Row title="Theme" note="Applies to every screen, including the dial face">
@@ -169,9 +194,17 @@ export function Settings() {
             <Row title="Haptic detents"><button className="btn btn-sm" onClick={() => ui.setHaptics(!ui.haptics)}>{ui.haptics ? 'On' : 'Off'}</button></Row>
             <Row title="Dial sound"><button className="btn btn-sm" onClick={() => ui.setSound(!ui.sound)}>{ui.sound ? 'On' : 'Off'}</button></Row>
           </div>
+          <div className="preview-card mt-8">
+            <div className="preview-phone" aria-hidden="true"><i /><i /><i /><span /></div>
+            <div>
+              <div className="label">Live preview</div>
+              <p className="muted mt-2 text-[13px]">Paper or graphite, accent, glass intensity and density — change them above and see the result here. {ui.theme === 'system' ? 'System follows your device.' : ''}</p>
+              <p className="dim mt-3 text-[11px]">Glass: {ui.glass === 'auto' ? `auto · ${ui.resolvedGlass}` : ui.glass} · {ui.motion === 'reduced' || (ui.motion === 'auto' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) ? 'reduced motion' : 'full motion'}</p>
+            </div>
+          </div>
         </section>
 
-        <section>
+        <section id="set-focus">
           <SectionLabel>Timer</SectionLabel>
           <div className="rule-list">
             <Row title="Default focus block"><input className="input max-w-[140px]" type="number" min={5} max={120} value={focusDefault} onChange={(e) => void setSetting('focusDefault', e.target.value)} /></Row>
@@ -181,7 +214,7 @@ export function Settings() {
           </div>
         </section>
 
-        <section className="panel p-6 sm:p-8">
+        <section id="set-notices" className="panel p-6 sm:p-8">
           <SectionLabel>Notifications</SectionLabel>
           <p className="muted max-w-2xl text-[13px]">{hosted ? 'In-app alerts and calendar alarms. Background push needs the laptop server.' : 'In-app alerts, background push to the installed PWA, and calendar alarms.'}</p>
           <div className="mt-6 flex flex-wrap gap-2">
@@ -210,7 +243,7 @@ export function Settings() {
           </div>
         </section>
 
-        <section className="panel p-6 sm:p-8">
+        <section id="set-privacy" className="panel p-6 sm:p-8">
           <SectionLabel>Privacy</SectionLabel>
           <div className="rule-list">
             <Row title="Where your data lives" note="IndexedDB on this device. The hosted copy has no server-side storage.">local only</Row>
@@ -222,7 +255,7 @@ export function Settings() {
         </section>
 
         {!hosted && (
-          <section className="panel p-6 sm:p-8">
+          <section id="set-devices" className="panel p-6 sm:p-8">
             <SectionLabel right={<span className="data-sm" style={{ color: sync.status === 'synced' ? 'var(--positive)' : 'var(--text-3)' }}>{sync.status === 'synced' ? 'Connected' : sync.status === 'error' ? 'Error' : 'Offline'}</span>}>Devices · LAN sync</SectionLabel>
             <p className="muted max-w-2xl text-[13px]">Start the sync server on your laptop, then scan the code with your phone. Both devices must be on the same Wi-Fi.</p>
             <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,1fr)_240px]">
@@ -246,7 +279,7 @@ export function Settings() {
           </section>
         )}
 
-        <section className="panel p-6 sm:p-8">
+        <section id="set-data" className="panel p-6 sm:p-8">
           <SectionLabel>Your data</SectionLabel>
           <p className="muted text-[13px]">Export everything as JSON, or restore a backup on any device. Import validates every record before it writes anything.</p>
           <div className="mt-6 flex flex-wrap gap-2">
@@ -260,17 +293,28 @@ export function Settings() {
             <button className="btn btn-danger" onClick={() => setResetOpen(true)}>Reset everything</button>
           </div>
           {message && <div className="data-sm mt-4" style={{ color: 'var(--accent)' }}>{message}</div>}
-          <p className="dim mt-5 text-[11px]">Pairing credentials and sync cursors are never included in a backup.</p>
+          <p className="dim mt-5 text-[11px]">Pairing credentials, sync cursors and imported files are never included in a backup. Notes and annotations are.</p>
         </section>
 
-        <section className="flex flex-wrap items-end justify-between gap-4 border-t pt-8" style={{ borderColor: 'var(--line)' }}>
-          <div>
-            <div className="display display-md">Meridian</div>
-            <div className="label mt-2">The line between now and later. v2.0</div>
-            <div className="dim mt-2 text-[12px]">Local-first · offline PWA · no tracking</div>
+        <section id="set-about" className="flex flex-col gap-6 border-t pt-8" style={{ borderColor: 'var(--line)' }}>
+          <div className="maker-card">
+            <div>
+              <div className="label">About</div>
+              <div className="display display-md mt-2">Meridian</div>
+              <p className="mt-3">The line between now and later. Offline, private, and built for one student at a time.</p>
+              <div className="dim mt-3 text-[11px]">v3.0 · local-first PWA · no account, no ads, no tracking</div>
+            </div>
+            <div className="text-center">
+              <div className="signature">Lucky</div>
+              <div className="label mt-3">Designed &amp; built by Lucky</div>
+            </div>
           </div>
-          <a className="btn" href="https://github.com/notebookworrk-cyber/notebookworrk-cyber.github.io" target="_blank" rel="noreferrer">Source on GitHub</a>
+          <div className="flex flex-wrap items-center gap-3">
+            <a className="btn" href="https://github.com/notebookworrk-cyber/notebookworrk-cyber.github.io" target="_blank" rel="noreferrer">Source on GitHub</a>
+            <span className="dim text-[12px]">Made by Lucky, on your device, for your device.</span>
+          </div>
         </section>
+        </div>
       </div>
 
       <Modal open={importMode != null} onClose={() => setImportMode(null)} title="Import backup">

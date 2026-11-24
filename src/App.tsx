@@ -13,6 +13,7 @@ const Review = lazy(() => import('./features/review/Review').then((m) => ({ defa
 const Progress = lazy(() => import('./features/progress/Progress').then((m) => ({ default: m.Progress })))
 const FocusStudio = lazy(() => import('./features/focus/Studio').then((m) => ({ default: m.FocusStudio })))
 const Settings = lazy(() => import('./features/settings/Settings').then((m) => ({ default: m.Settings })))
+const Notes = lazy(() => import('./features/notes/Notes').then((m) => ({ default: m.Notes })))
 import { checkReminders } from './features/reminders/engine'
 import { setHapticsEnabled, setSoundEnabled } from './features/instrument/feedback'
 import { seedDemo } from './lib/demo'
@@ -141,6 +142,7 @@ function Shell() {
           <Route path="/review" element={<Review />} />
           <Route path="/progress" element={<Progress />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/notes" element={<Notes />} />
         </Route>
         <Route path="/instrument" element={<Instrument />} />
         <Route path="/studio" element={<FocusStudio />} />

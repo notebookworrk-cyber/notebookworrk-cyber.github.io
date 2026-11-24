@@ -11,6 +11,7 @@ const RAIL: { to: string; label: string; icon: IconName }[] = [
   { to: '/instrument', label: 'Instrument', icon: 'target' },
   { to: '/plan', label: 'Plan', icon: 'calendar' },
   { to: '/review', label: 'Review', icon: 'ledger' },
+  { to: '/notes', label: 'Notes', icon: 'ledger' },
   { to: '/progress', label: 'Progress', icon: 'chart' },
   { to: '/settings', label: 'Settings', icon: 'settings' },
 ]
@@ -30,6 +31,42 @@ function Mark({ small = false }: { small?: boolean }) {
   )
 }
 
+function BinderTabs() {
+  return (
+    <nav className="binder-tabs" aria-label="Sections">
+      {RAIL.map((item) => (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          end={item.to === '/'}
+          className={({ isActive }) => `binder-tab${isActive ? ' active' : ''}`}
+        >
+          {item.label}
+        </NavLink>
+      ))}
+    </nav>
+  )
+}
+
+/** Feeds the specular highlight on glass surfaces. Skipped in reduced/performance modes. */
+function useGlassPointer() {
+  useEffect(() => {
+    const root = document.documentElement
+    if (root.dataset.motion === 'reduced' || root.dataset.glass === 'performance') return
+    const onMove = (event: PointerEvent) => {
+      const surfaces = document.querySelectorAll<HTMLElement>('[data-glass-surface]')
+      for (const el of surfaces) {
+        const rect = el.getBoundingClientRect()
+        if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) continue
+        el.style.setProperty('--mx', `${Math.round(event.clientX - rect.left)}px`)
+        el.style.setProperty('--my', `${Math.round(event.clientY - rect.top)}px`)
+      }
+    }
+    window.addEventListener('pointermove', onMove, { passive: true })
+    return () => window.removeEventListener('pointermove', onMove)
+  }, [])
+}
+
 function Sidebar() {
   const open = useUI((s) => s.sidebarOpen)
   const setOpen = useUI((s) => s.setSidebarOpen)
@@ -46,6 +83,7 @@ function Sidebar() {
             <Icon name="close" size={16} />
           </button>
         </div>
+        <div className="spine-label">The binder</div>
         <nav className="rail-links">
           {RAIL.map((item) => (
             <NavLink
@@ -71,6 +109,7 @@ function Sidebar() {
           <div className="data-sm mt-3" style={{ color: sync.status === 'synced' ? 'var(--positive)' : 'var(--text-3)' }}>
             {sync.status === 'synced' ? 'LAN link active' : 'Working offline'}
           </div>
+          <div className="maker-mark data-sm mt-4">Made by <b>Lucky</b></div>
         </div>
       </aside>
     </>
@@ -99,7 +138,7 @@ function TopBar() {
   }, [])
 
   return (
-    <header className="topbar">
+    <header className="topbar glass" data-glass-surface>
       <div className="flex min-w-0 items-center gap-4">
         <button className="btn btn-quiet btn-icon lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
           <Icon name="menu" size={19} />
@@ -135,11 +174,12 @@ function MobileDock() {
     { to: '/', label: 'Today', icon: 'sun' },
     { to: '/plan', label: 'Plan', icon: 'calendar' },
     { to: '/instrument', label: 'Dial', icon: 'target' },
+    { to: '/notes', label: 'Notes', icon: 'ledger' },
     { to: '/review', label: 'Review', icon: 'ledger' },
     { to: '/progress', label: 'Progress', icon: 'chart' },
   ]
   return (
-    <nav className="dock" aria-label="Mobile">
+    <nav className="dock glass" aria-label="Mobile" data-glass-surface>
       {items.map((item) => (
         <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => `dock-item${item.to === '/instrument' ? ' is-centre' : ''}${isActive ? ' is-active' : ''}`}>
           {({ isActive }) => (
@@ -172,12 +212,20 @@ function UpdateToast() {
 }
 
 export function EditorialShell() {
+  useGlassPointer()
   return (
     <div className="app-shell">
       <Sidebar />
       <div className="app-main">
         <TopBar />
-        <main className="editorial"><Outlet /></main>
+        <BinderTabs />
+        <main className="editorial">
+          <Outlet />
+          <div className="page-foot">
+            <span>Meridian · the line between now and later</span>
+            <span className="maker-mark">Made by <b>Lucky</b></span>
+          </div>
+        </main>
       </div>
       <MobileDock />
       <CommandPalette />

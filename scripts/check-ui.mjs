@@ -8,7 +8,7 @@ const OUT = path.resolve('.artifacts')
 fs.mkdirSync(OUT, { recursive: true })
 
 const WIDTHS = [320, 360, 375, 390, 430, 768, 1024, 1440]
-const ROUTES = ['/?demo=1', '/plan', '/review', '/instrument', '/studio', '/progress', '/settings']
+const ROUTES = ['/?demo=1', '/notes', '/plan', '/review', '/instrument', '/studio', '/progress', '/settings']
 const failures = []
 const results = []
 
@@ -48,6 +48,9 @@ try {
       if (width === 390 && route === '/instrument') {
         await page.screenshot({ path: path.join(OUT, 'instrument-390.png'), fullPage: false })
       }
+      if (width === 390 && route === '/notes') {
+        await page.screenshot({ path: path.join(OUT, 'notes-390.png'), fullPage: false })
+      }
     }
     await context.close()
   }
@@ -58,10 +61,20 @@ try {
   page.on('pageerror', (error) => failures.push(`journey page error: ${error.message}`))
   await page.goto(BASE + '/?demo=1', { waitUntil: 'networkidle' })
   await page.waitForFunction(() => !document.querySelector('.instrument-modal'), { timeout: 10000 })
-  await page.getByRole('button', { name: /Focus now/ }).click()
+  await page.getByRole('button', { name: /Start now/ }).click()
   await page.waitForURL(/\/instrument/)
   await page.locator('.dial-shell').waitFor({ state: 'visible' })
   results.push('one-tap launch opens the dial')
+
+  await page.goto(BASE + '/notes', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: /New page/ }).first().click()
+  await page.getByLabel('Page title').fill('Electromagnetic induction')
+  await page.getByLabel('Page text').fill('Faraday: a changing flux induces an emf.')
+  if ((await page.getByLabel('Page text').inputValue()).includes('Faraday')) {
+    results.push('Notes binder creates and saves a page')
+  } else {
+    failures.push('Notes binder did not save the page text')
+  }
 
   await page.goto(BASE + '/plan', { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: /Rescue my day/ }).click()

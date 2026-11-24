@@ -18,6 +18,7 @@ import { touch, type Task } from '../../db/types'
 import { dayKey, fmtMinutes, fmtTime, minutesToHM } from '../../lib/dates'
 import { consistency, sessionsByDay, streakDays, subjectBalance, weeklyTotal } from '../../lib/stats'
 import { computeReadiness, nextAction } from '../../lib/readiness'
+import { computeDeficit } from '../../lib/deficit'
 import { buildReviewQueue } from '../../lib/recall'
 import { useTimer } from '../focus/timer'
 import { TaskForm } from '../ledger/forms'
@@ -25,14 +26,6 @@ import { TaskForm } from '../ledger/forms'
 const START = 7
 const END = 23
 const H = 40
-
-function greeting(): string {
-  const h = new Date().getHours()
-  if (h < 5) return 'Still up'
-  if (h < 12) return 'Good morning'
-  if (h < 17) return 'Good afternoon'
-  return 'Good evening'
-}
 
 export function Today() {
   const courses = useCourses()
@@ -44,6 +37,7 @@ export function Today() {
   const recalls = useRecalls()
   const commitments = useCommitments()
   const dailyGoal = Number(useSetting('dailyGoal', '120')) || 120
+  const hoursPerDay = Number(useSetting('resetHours', '2.5')) || 2.5
   const navigate = useNavigate()
   const startTimer = useTimer((s) => s.start)
   const timer = useTimer()
@@ -60,6 +54,10 @@ export function Today() {
   const reviews = useMemo(
     () => buildReviewQueue({ topics, recalls, assessments, courses }).slice(0, 4),
     [topics, recalls, assessments, courses],
+  )
+  const deficit = useMemo(
+    () => computeDeficit({ topics, assessments, commitments, hoursPerDay }),
+    [topics, assessments, commitments, hoursPerDay],
   )
 
   const nameOf = (id: string | null) => courses.find((c) => c.id === id)?.name ?? 'Unassigned'
@@ -97,62 +95,67 @@ export function Today() {
   const suggestedCourse = suggestion?.courseId ?? openTasks[0]?.courseId ?? null
 
   return (
-    <div className="fade-in flex flex-col gap-12 pb-8">
-      <header className="flex flex-wrap items-end justify-between gap-5">
-        <div>
-          <div className="label">{now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
-          <h1 className="display display-lg mt-4">{greeting()}.</h1>
-          <p className="muted mt-4 max-w-xl text-[14px]">
-            {todayMinutes} of {dailyGoal} focus minutes today. {consistent.activeDays} active days in the last four weeks.
-          </p>
+    <div className="fade-in flex flex-col gap-10 pb-8">
+      <header>
+        <div className="page-kicker">
+          <span>{now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+          {deficit?.exam && <span><b>{deficit.examDays}d</b> to {deficit.exam.title}</span>}
+          <span>{todayMinutes} of {dailyGoal} focus minutes today</span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button className="btn" onClick={() => setQuickAdd(true)}><Icon name="plus" size={15} /> Quick capture</button>
-          <button className="btn" onClick={() => navigate('/plan?rescue=1')}><Icon name="reset" size={15} /> Rescue my day</button>
-          <button className="btn btn-primary" onClick={startFocus}><Icon name="play" size={13} /> Focus now</button>
+        <div className="deficit-hero">
+          <div className="min-w-0">
+            <div className="label">The gap · {deficit?.evidence ?? 'thin'} evidence</div>
+            <div className={`deficit-number${deficit && deficit.gapMin > 0 ? ' is-short' : ''}`}>
+              {deficit
+                ? deficit.gapMin > 0
+                  ? `${Math.ceil(deficit.gapMin / 60)}h short`
+                  : deficit.gapMin < 0
+                    ? `${Math.ceil(-deficit.gapMin / 60)}h spare`
+                    : 'Balanced'
+                : 'Covered'}
+            </div>
+            <p className="deficit-caption">
+              {deficit
+                ? `${Math.round(deficit.usableMin / 60)} usable hours before ${deficit.exam?.title ?? 'the next two weeks'} · ${Math.round(deficit.requiredMin / 60)} needed for ${deficit.chaptersLeft} chapters. Based on ${deficit.hoursPerDay} h/day and your own estimates.`
+                : 'Every chapter is marked done. Add one in Plan when you need a new target.'}
+            </p>
+            <div className="deficit-bar" aria-hidden="true">
+              <i style={{ width: `${deficit ? Math.min(100, (deficit.usableMin / Math.max(1, deficit.requiredMin)) * 100) : 100}%` }} />
+            </div>
+          </div>
+          <div className="deficit-actions">
+            <button className="btn btn-primary" onClick={startFocus}><Icon name="play" size={13} /> Start now</button>
+            <button className="btn" onClick={() => setQuickAdd(true)}><Icon name="plus" size={15} /> Quick capture</button>
+            <button className="btn" onClick={() => navigate('/plan?rescue=1')}><Icon name="reset" size={15} /> Rescue my day</button>
+          </div>
         </div>
       </header>
 
       {/* THE NEXT MOVE — one action, with its reason */}
-      <section className="next-move">
-        <div className="next-move-head">
-          <span className="signal-dot" />
-          <span>Now · {fmtTime(Date.now())}</span>
-          <span className="next-move-dial">one move</span>
-        </div>
-        <div className="next-move-body">
-          <div className="min-w-0">
-            <div className="label">{suggestion ? `Study · ${nameOf(suggestedCourse)}` : 'The next useful thing'}</div>
-            <h2 className="next-move-title">{target ?? (courses.length ? 'Add a chapter to begin.' : 'Add your first course.')}</h2>
-            <div className="muted mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
-              {(suggestion || openTasks[0]) && (
-                <>
-                  <span className="flex items-center gap-2"><CourseDot color={colorOf(suggestedCourse)} />{nameOf(suggestedCourse)}</span>
-                  <span>{suggestion?.minutes ?? openTasks[0]?.estimateMin ?? 25} min</span>
-                </>
-              )}
-              <span>{suggestion?.reason ?? (openTasks[0] ? 'Highest priority in your ledger' : 'Rebuild the week to find a starting point')}</span>
+      <section className="move-strip">
+        <div className="min-w-0">
+          <div className="label">Now · {fmtTime(Date.now())} {suggestion ? `· ${nameOf(suggestedCourse)}` : ''}</div>
+          <h1 className="move-title">{target ?? (courses.length ? 'Add a chapter to begin.' : 'Add your first course.')}</h1>
+          <div className="move-why">
+            {suggestion?.reason ?? (openTasks[0] ? 'Highest priority in your ledger' : 'Rebuild the week to find a starting point')}
+            {suggestion || openTasks[0] ? ` · ${suggestion?.minutes ?? openTasks[0]?.estimateMin ?? 25} min` : ''}
+          </div>
+          {timer.running && (
+            <div className="live-progress">
+              <div className="live-progress-fill" style={{ width: `${Math.min(100, (timer.accumulatedMs / (timer.durationMin * 60_000)) * 100)}%` }} />
             </div>
-            {timer.running && (
-              <div className="live-progress">
-                <div className="live-progress-fill" style={{ width: `${Math.min(100, (timer.accumulatedMs / (timer.durationMin * 60_000)) * 100)}%` }} />
-              </div>
-            )}
-          </div>
-          <div className="flex shrink-0 flex-col items-stretch gap-2">
-            <button className="btn btn-primary px-7" onClick={startFocus}>
-              {timer.running ? 'Open the dial' : `Start ${suggestion?.minutes ?? 25} minutes`} <Icon name="arrow" size={14} />
-            </button>
-            <Link className="btn btn-quiet justify-center" to="/instrument">Adjust on the dial</Link>
-          </div>
+          )}
         </div>
-        {!courses.length && (
-          <div className="mt-7 flex flex-wrap items-center gap-3">
-            <Link className="btn" to="/plan?add=course">Add a course</Link>
-            <span className="label">Everything starts with one course and one exam date.</span>
-          </div>
-        )}
+        <button className="btn btn-primary" onClick={startFocus}>
+          {timer.running ? 'Open the dial' : `Start ${suggestion?.minutes ?? 25} min`} <Icon name="arrow" size={14} />
+        </button>
       </section>
+      {!courses.length && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Link className="btn" to="/plan?add=course">Add a course</Link>
+          <span className="label">Everything starts with one course and one exam date.</span>
+        </div>
+      )}
 
       <div className="editorial-grid">
         {/* THE DAY SHEET */}

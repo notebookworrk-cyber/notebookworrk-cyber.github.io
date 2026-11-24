@@ -52,6 +52,7 @@ export function CommandPalette() {
       { id: 'rescue', label: 'Rescue my day', hint: 'Rebuild what remains today', icon: 'reset', run: go('/plan?rescue=1') },
       { id: 'review', label: 'Open review', hint: 'Recall loop', icon: 'ledger', run: go('/review') },
       { id: 'plan', label: 'Open plan', hint: 'Week and backlog', icon: 'calendar', run: go('/plan') },
+      { id: 'notes', label: 'Open notes', hint: 'Your binder of pages and files', icon: 'ledger', run: go('/notes') },
       { id: 'progress', label: 'Open progress', hint: 'Evidence and statement', icon: 'chart', run: go('/progress') },
       { id: 'settings', label: 'Open settings', hint: 'Preferences and data', icon: 'settings', run: go('/settings') },
       {
@@ -81,6 +82,12 @@ export function CommandPalette() {
   }, [navigate, setOpen, setTheme, theme])
 
   const filtered = commands.filter((c) => `${c.label} ${c.hint}`.toLowerCase().includes(query.toLowerCase()))
+  if (query.trim().toLowerCase() === 'lucky') {
+    filtered.push({
+      id: 'lucky', label: 'Made by Lucky', hint: 'Designed and built by Lucky', icon: 'spark',
+      run: () => { navigate('/settings'); setOpen(false) },
+    })
+  }
   useEffect(() => {
     setActive(0)
   }, [query])

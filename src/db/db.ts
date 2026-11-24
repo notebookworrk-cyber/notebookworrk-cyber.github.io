@@ -13,6 +13,8 @@ import type {
   Topic,
   Unlock,
   Reminder,
+  Note,
+  StoredFile,
 } from './types'
 
 export interface MeridianDB extends Dexie {
@@ -27,6 +29,8 @@ export interface MeridianDB extends Dexie {
   reminders: EntityTable<Reminder, 'id'>
   recalls: EntityTable<Recall, 'id'>
   commitments: EntityTable<Commitment, 'id'>
+  notes: EntityTable<Note, 'id'>
+  files: EntityTable<StoredFile, 'id'>
   meta: EntityTable<LocalMeta, 'key'>
 }
 
@@ -62,6 +66,26 @@ db.version(3).stores({
   reminders: 'id, at, enabled, updatedAt, deletedAt',
   recalls: 'id, updatedAt, deletedAt, topicId, at, nextDueAt',
   commitments: 'id, updatedAt, deletedAt, kind',
+  meta: 'key',
+})
+
+// v4 adds the Notes binder. Schema-only; existing records are untouched.
+// Files are deliberately excluded from TABLES: backups JSON-serialize rows,
+// and a Blob would silently become {}. Attachments stay on this device.
+db.version(4).stores({
+  courses: 'id, updatedAt, deletedAt, semester',
+  assessments: 'id, updatedAt, deletedAt, courseId, dueAt',
+  topics: 'id, updatedAt, deletedAt, courseId, nextReviewAt',
+  tasks: 'id, updatedAt, deletedAt, courseId, topicId, dueAt, done',
+  sessions: 'id, updatedAt, deletedAt, courseId, topicId, startedAt',
+  plans: 'id, updatedAt, deletedAt, createdAt',
+  settings: 'id, updatedAt, key',
+  unlocks: 'id, at, app, updatedAt, deletedAt',
+  reminders: 'id, at, enabled, updatedAt, deletedAt',
+  recalls: 'id, updatedAt, deletedAt, topicId, at, nextDueAt',
+  commitments: 'id, updatedAt, deletedAt, kind',
+  notes: 'id, updatedAt, deletedAt, courseId, topicId, kind, pinned',
+  files: 'id, updatedAt, deletedAt, noteId',
   meta: 'key',
 })
 
@@ -111,7 +135,7 @@ export async function setSetting(key: string, value: string): Promise<void> {
   }
 }
 
-export async function softDelete(table: TableName, id: ID): Promise<void> {
+export async function softDelete(table: TableName | 'notes' | 'files', id: ID): Promise<void> {
   const row = await db[table].get(id)
   if (row) {
     await db[table].put({ ...row, deletedAt: Date.now(), updatedAt: Date.now(), rev: row.rev + 1 } as never)

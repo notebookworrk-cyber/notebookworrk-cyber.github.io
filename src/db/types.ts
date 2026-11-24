@@ -76,6 +76,40 @@ export interface Session extends SyncedRecord {
   confidenceAfter?: number
 }
 
+/** A normalised ink stroke: coordinates are 0..1 of the page, so zoom never moves it. */
+export interface InkStroke {
+  page: number
+  tool: 'pen' | 'highlighter'
+  color: string
+  width: number
+  points: [number, number, number][]
+}
+
+/** A page in the Notes binder. Text and ink coexist; files are stored separately. */
+export interface Note extends SyncedRecord {
+  title: string
+  body: string
+  courseId: ID | null
+  topicId: ID | null
+  kind: 'text' | 'file'
+  /** Stored file id when kind === 'file'. */
+  fileId: ID | null
+  mime: string
+  name: string
+  ink: InkStroke[]
+  pinned: number
+  tags: string[]
+}
+
+/** An imported attachment. Blobs stay in IndexedDB and are never put in a backup. */
+export interface StoredFile extends SyncedRecord {
+  name: string
+  mime: string
+  size: number
+  blob: Blob
+  noteId: ID | null
+}
+
 export type RecallRating = 0 | 1 | 2 | 3
 export type RecallMethod = 'explain' | 'written' | 'questions' | 'confidence'
 

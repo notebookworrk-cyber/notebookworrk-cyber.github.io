@@ -11,6 +11,8 @@ import type {
   Task,
   Topic,
   Unlock,
+  Note,
+  StoredFile,
 } from './types'
 
 const notDeleted = <T extends { deletedAt: number | null }>(rows: T[] | undefined): T[] =>
@@ -64,6 +66,14 @@ export function useRecalls(): Recall[] {
 
 export function useCommitments(): Commitment[] {
   return notDeleted(useLiveQuery(() => db.commitments.toArray(), []))
+}
+
+export function useNotes(): Note[] {
+  return notDeleted(useLiveQuery(() => db.notes.toArray(), []))
+}
+
+export function useFiles(): StoredFile[] {
+  return notDeleted(useLiveQuery(() => db.files.toArray(), []))
 }
 
 export function useSetting(key: string, fallback: string): string {

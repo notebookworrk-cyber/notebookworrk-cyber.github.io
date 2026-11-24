@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.0.0 — the binder
+
+- Rebuilt the shell as a physical binder: the desktop rail is a spine, the page has a stacked edge and a ribbon, and section tabs protrude above the sheet. Paper holds content; chrome uses a liquid-glass material with rim, pointer-following specular highlight and grain.
+- Three glass tiers (Full / Balanced / Performance) plus reduced-motion and reduced-transparency paths. Glass is limited to fixed chrome and never used on scrolling lists.
+- Rebuilt Today's front door around one number — the **deficit** (usable hours before the next exam against the hours your chapters estimate) — and one recommended move. Added the same line to Progress.
+- Added **Notes** (`/notes`): pages with Markdown toolbar, instant search, course and chapter links, pin, tags and text export; PDF/image/text import; pen, highlighter, eraser and undo on a normalised ink layer; browser dictation; and "send selection to Review" as a 5-minute recall task.
+- Added Dexie v4 (`notes`, `files`). Imported blobs live in IndexedDB and are deliberately excluded from JSON backups and sync; notes and ink are included.
+- Added `pdfjs-dist` as the first new runtime dependency, lazy-loaded only in Notes. PDF rendering and ink capture are verified by `npm run check:pdf`.
+- Rebuilt Settings as grouped, searchable navigation with a live appearance preview and a "Designed & built by Lucky" About card. Added author metadata to the manifest, page and package.
+- Added 4 unit tests for the deficit (34 total) and extended browser checks to the Notes route and a note-creation journey.
+
 ## 2.0.0
 
 - Rebuilt navigation: Today is the front door; Instrument, Plan, Review, Progress, Settings, Focus Studio and Shield are distinct surfaces. Desktop rail and mobile dock with the dial at the centre.

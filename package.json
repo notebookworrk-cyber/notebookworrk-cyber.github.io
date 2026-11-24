@@ -1,7 +1,8 @@
 {
   "name": "meridian",
   "private": true,
-  "version": "0.1.0",
+  "version": "3.0.0",
+  "author": "Lucky",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -16,12 +17,14 @@
     "check": "npm run typecheck && npm test && npm run build",
     "check:ui": "node scripts/check-ui.mjs",
     "check:offline": "node scripts/offline-check.mjs",
+    "check:pdf": "node scripts/check-pdf.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
     "dexie": "^4.2.1",
     "dexie-react-hooks": "^1.1.7",
+    "pdfjs-dist": "^6.5.438",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

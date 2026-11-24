@@ -1,14 +1,14 @@
 # Architecture
 
-Meridian stays deliberately small: React 19 + TypeScript + Vite 7, Dexie 4 / IndexedDB, Zustand, React Router, Tailwind 4 and vite-plugin-pwa. No UI framework, no tracking, no runtime service.
+Meridian stays deliberately small: React 19 + TypeScript + Vite 7, Dexie 4 / IndexedDB, Zustand, React Router, Tailwind 4 and vite-plugin-pwa. No UI framework, no tracking, no runtime service. The one added runtime dependency is `pdfjs-dist`, lazy-loaded inside Notes so the main bundle is unchanged.
 
 ## Feature boundaries
 
 ```
 src/
   app/        shell, navigation, theme/preferences, icons, shared UI, command palette
-  db/         Dexie schema v1→v3, hooks, backup v2, record types
-  lib/        pure logic: scheduler, recall, readiness, estimate, stats, dates, ICS, cost
+  db/         Dexie schema v1→v4, hooks, backup v2, record types
+  lib/        pure logic: scheduler, recall, readiness, deficit, estimate, stats, dates, ICS, cost
   features/
     today/    next best move, day sheet, quick capture
     instrument/  dial + chapter rack + session controls
@@ -17,6 +17,7 @@ src/
     plan/     week, backlog, courses, fixed commitments, rebuild, rescue
     review/   revision queue and active-recall flow
     progress/ readiness evidence, analytics, grade what-if, statement
+    notes/    binder pages, PDF/image reader, normalised ink, dictation
     settings/ profile, appearance, timer, notifications, privacy, data, devices
     block/    Focus Shield
     reminders/, ledger/, reset/  supporting modules
@@ -32,6 +33,9 @@ Dexie v1/v2 records are preserved. v3 adds `recalls` and `commitments` plus opti
 - `Task`: `topicId`, `source`, `planId` — generated blocks can be replaced without touching manual work.
 - `Recall`: one rating + method + answer + computed next due date. The only source of revision scheduling truth.
 - `Commitment`: weekly fixed block; a hard barrier in the scheduler.
+- v4 adds `Note` (title, body, course/chapter, tags, pinned, normalised ink strokes) and `StoredFile` (name, mime, Blob). Files are excluded from `TABLES`, so backups and sync carry notes and ink but never large attachments.
+
+`src/lib/deficit.ts` turns hours-per-day, fixed commitments, the nearest exam and chapter estimates into the front-door gap. It returns `null` when no chapters remain and labels its evidence quality instead of implying a prediction.
 
 `TABLES` in `src/db/db.ts` and the allowlist in `server/index.mjs` must stay in sync.
 

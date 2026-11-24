@@ -1,5 +1,17 @@
 # Feature reference
 
+## The binder and the line
+
+The app is a binder: a spine on desktop, section tabs above a stacked page, a ribbon on today's page. Liquid glass is a material for fixed chrome — top bar, dock, sheets, palette, audio panel — never for lists. Full / Balanced / Performance profiles, reduced motion and reduced transparency all have real paths.
+
+Today opens with the **deficit**: usable hours before the nearest exam (your hours-per-day setting, capped by the actual free windows after fixed commitments today) minus the hours your unfinished chapter estimates require. The number is labelled with its evidence quality and assumptions. It is a prompt to decide, not a grade. Progress shows the same line beside the readiness band.
+
+## Notes
+
+Pages can be typed (small Markdown toolbar: bold, italic, heading, list, quote), dictated through the browser's speech service, or created by importing a file. PDF, images, TXT and MD render inline; DOCX/PPTX and other formats are stored and can be opened in another app. Pen, highlighter, eraser, four ink colours, width and clear/undo operate on a normalised coordinate layer, so strokes stay put through zoom and reload. Search covers title, text and tags. Select text and **Send selection to Review** creates a 5-minute recall task for tomorrow tied to the page's chapter.
+
+Files live in the `files` table as Blobs and are not part of JSON backups or LAN sync; notes and ink are. Dictation audio goes to the browser's speech service, never through Meridian, and the mic control is hidden where the API is unavailable.
+
 ## Rescue My Day
 
 Available from Today and Plan. It keeps completed sessions and fixed commitments, computes the minutes actually left after now, and rebuilds only today's work. The dialog shows three lists: **Kept**, **Moved** (original time → new time + reason), and **Deferred** (untouched, with the reason it did not fit). Accepting applies the recovery plan; rejecting leaves the original plan exactly as it was.

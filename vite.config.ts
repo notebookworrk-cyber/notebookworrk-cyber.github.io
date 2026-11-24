@@ -13,7 +13,7 @@ export default defineConfig({
       manifest: {
         name: 'Meridian — the line between now and later',
         short_name: 'Meridian',
-        description: 'See what to do next, what it is worth, and what distraction costs.',
+        description: 'See what to do next, what it is worth, and what distraction costs. Made by Lucky.',
         theme_color: '#121211',
         background_color: '#121211',
         display: 'standalone',
