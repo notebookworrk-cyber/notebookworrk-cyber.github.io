@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.1 — the timer really ticks
+
+- Fixed the countdown: `tick()` checked completion but never caused a re-render, so the dial, top bar chip and Studio time only moved after another click. A separate one-second clock store now drives display components without writing to persisted state every second; `visibilitychange` also reconciles and refreshes on return.
+- Switched the PWA to `autoUpdate` with `skipWaiting`/`clientsClaim`. Previously an installed app stayed on an old cached build until the update toast happened to be tapped. Added a visible `Meridian 3.0` tag on Today so the running version can be checked at a glance.
+- Browser check now asserts the timer counts down with no further clicks (22:00 → 21:59).
+
 ## 3.0.0 — the binder
 
 - Rebuilt the shell as a physical binder: the desktop rail is a spine, the page has a stacked edge and a ribbon, and section tabs protrude above the sheet. Paper holds content; chrome uses a liquid-glass material with rim, pointer-following specular highlight and grain.

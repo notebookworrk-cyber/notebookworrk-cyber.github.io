@@ -4,6 +4,7 @@ import { applyAppearance, useUI } from './app/theme'
 import { EditorialShell } from './app/Shell'
 import { setPairing, startAutoSync, syncNow } from './sync/engine'
 import { useTimer } from './features/focus/timer'
+import { advanceClock } from './features/focus/clock'
 import { BlockScreen } from './features/block/BlockScreen'
 
 const Instrument = lazy(() => import('./features/instrument/Instrument').then((m) => ({ default: m.Instrument })))
@@ -89,8 +90,22 @@ function Shell() {
   useEffect(() => setHapticsEnabled(ui.haptics), [ui.haptics])
   useEffect(() => {
     useTimer.getState().reconcile()
-    const id = window.setInterval(() => tick(), 1000)
-    return () => window.clearInterval(id)
+    advanceClock()
+    const id = window.setInterval(() => {
+      tick()
+      advanceClock()
+    }, 1000)
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      useTimer.getState().reconcile()
+      tick()
+      advanceClock()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [tick])
   useEffect(() => startAutoSync(), [])
   useEffect(() => {

@@ -8,7 +8,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'prompt',
+      // Installed PWAs must update themselves on the next launch. A prompt-only
+      // service worker leaves the phone on an old build indefinitely.
+      registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
         name: 'Meridian — the line between now and later',
@@ -25,6 +27,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: '/index.html',
       },

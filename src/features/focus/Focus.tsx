@@ -6,14 +6,14 @@ import { useCourses, useSessions } from '../../db/hooks'
 import { softDelete } from '../../db/db'
 import { fmtFullDate, minutesToHM } from '../../lib/dates'
 import { courseMinutes, streakDays, weeklyTotal } from '../../lib/stats'
-import { displayTime, elapsedMs, useTimer, type TimerMode } from './timer'
+import { displayTime, elapsedMs, useTickingTimer, useTimer, type TimerMode } from './timer'
 
 const PRESETS = [15, 25, 50, 90]
 
 export function Focus() {
   const courses = useCourses()
   const sessions = useSessions()
-  const timer = useTimer()
+  const timer = useTickingTimer()
   const navigate = useNavigate()
   const [notice, setNotice] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)

@@ -1130,6 +1130,7 @@ body.modal-open .dock { display: none; }
   letter-spacing: 0.12em; text-transform: uppercase;
 }
 .page-kicker b { color: var(--accent); font-weight: 600; }
+.version-tag { border: 1px solid var(--accent); color: var(--accent); padding: 2px 6px; letter-spacing: 0.08em; }
 .deficit-hero {
   display: grid; gap: 18px; margin-top: 22px;
   padding: 22px 20px; border: 1px solid var(--line);

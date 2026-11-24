@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { Icon, type IconName } from './icons'
 import { THEMES, useUI } from './theme'
 import { CommandPalette } from './palette'
-import { displayTime, useTimer } from '../features/focus/timer'
+import { displayTime, useTickingTimer, useTimer } from '../features/focus/timer'
 import { useSync } from '../sync/engine'
 
 const RAIL: { to: string; label: string; icon: IconName }[] = [
@@ -121,7 +121,7 @@ function TopBar() {
   const setPaletteOpen = useUI((s) => s.setPaletteOpen)
   const theme = useUI((s) => s.theme)
   const setTheme = useUI((s) => s.setTheme)
-  const timer = useTimer()
+  const timer = useTickingTimer()
   const navigate = useNavigate()
   const [online, setOnline] = useState(navigator.onLine)
   const today = new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })

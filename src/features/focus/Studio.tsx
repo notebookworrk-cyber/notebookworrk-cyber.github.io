@@ -9,7 +9,7 @@ import { courseMinutes, streakDays, weeklyTotal } from '../../lib/stats'
 import { AudioPanel } from '../audio/AudioPanel'
 import { RecoveryDialog } from './RecoveryDialog'
 import { useWakeLock } from './wakeLock'
-import { displayTime, elapsedMs, useTimer, type TimerMode } from './timer'
+import { displayTime, elapsedMs, useTickingTimer, useTimer, type TimerMode } from './timer'
 
 const PRESETS = [15, 25, 35, 50, 90]
 const MODES: TimerMode[] = ['focus', 'break', 'stopwatch']
@@ -18,7 +18,7 @@ export function FocusStudio() {
   const courses = useCourses()
   const topics = useTopics()
   const sessions = useSessions()
-  const timer = useTimer()
+  const timer = useTickingTimer()
   const navigate = useNavigate()
   const wake = useWakeLock(timer.running)
   const notesRef = useRef<HTMLTextAreaElement>(null)

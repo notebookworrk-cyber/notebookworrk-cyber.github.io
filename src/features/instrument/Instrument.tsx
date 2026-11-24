@@ -5,7 +5,7 @@ import { useAssessments, useCourses, useSessions, useTasks, useTopics, useUnlock
 import { minutesToHM } from '../../lib/dates'
 import { computeReadiness, nextAction } from '../../lib/readiness'
 import { streakDays } from '../../lib/stats'
-import { displayTime, elapsedMs, useTimer } from '../focus/timer'
+import { displayTime, elapsedMs, useTickingTimer, useTimer } from '../focus/timer'
 import { RecoveryDialog } from '../focus/RecoveryDialog'
 import { AudioPanel } from '../audio/AudioPanel'
 import { DIAL_MAX, DIAL_MIN, Dial } from './Dial'
@@ -30,7 +30,7 @@ export function Instrument() {
   const unlocks = useUnlocks()
   const [params, setParams] = useSearchParams()
 
-  const timer = useTimer()
+  const timer = useTickingTimer()
   const setDuration = useTimer((s) => s.setDuration)
   const retime = useTimer((s) => s.retime)
   const start = useTimer((s) => s.start)

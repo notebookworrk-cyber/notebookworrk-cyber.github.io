@@ -6,7 +6,7 @@ import { db } from '../../db/db'
 import { stamp, uid } from '../../db/types'
 import { computeReadiness } from '../../lib/readiness'
 import { costHeadline, costOfLeak, formatBalance } from '../../lib/cost'
-import { displayTime, useTimer } from '../focus/timer'
+import { displayTime, useTickingTimer, useTimer } from '../focus/timer'
 
 const APPS: Record<string, { name: string; intent: string }> = {
   instagram: { name: 'Instagram', intent: 'intent://instagram.com/#Intent;package=com.instagram.android;scheme=https;end' },
@@ -31,7 +31,7 @@ export function BlockScreen() {
   const assessments = useAssessments()
   const sessions = useSessions()
   const unlocks = useUnlocks()
-  const timer = useTimer()
+  const timer = useTickingTimer()
 
   const [holding, setHolding] = useState(false)
   const [progress, setProgress] = useState(0)

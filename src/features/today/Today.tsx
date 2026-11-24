@@ -20,7 +20,7 @@ import { consistency, sessionsByDay, streakDays, subjectBalance, weeklyTotal } f
 import { computeReadiness, nextAction } from '../../lib/readiness'
 import { computeDeficit } from '../../lib/deficit'
 import { buildReviewQueue } from '../../lib/recall'
-import { useTimer } from '../focus/timer'
+import { useTickingTimer, useTimer } from '../focus/timer'
 import { TaskForm } from '../ledger/forms'
 
 const START = 7
@@ -40,7 +40,7 @@ export function Today() {
   const hoursPerDay = Number(useSetting('resetHours', '2.5')) || 2.5
   const navigate = useNavigate()
   const startTimer = useTimer((s) => s.start)
-  const timer = useTimer()
+  const timer = useTickingTimer()
   const [quickAdd, setQuickAdd] = useState(false)
 
   const readiness = useMemo(
@@ -101,6 +101,7 @@ export function Today() {
           <span>{now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</span>
           {deficit?.exam && <span><b>{deficit.examDays}d</b> to {deficit.exam.title}</span>}
           <span>{todayMinutes} of {dailyGoal} focus minutes today</span>
+          <span className="version-tag">Meridian 3.0</span>
         </div>
         <div className="deficit-hero">
           <div className="min-w-0">

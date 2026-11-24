@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { db } from '../../db/db'
 import { stamp, uid, type FocusMode, type ID, type Session } from '../../db/types'
+import { useClock } from './clock'
 
 export type TimerMode = 'focus' | 'break' | 'stopwatch'
 
@@ -249,4 +250,10 @@ export function displayTime(s: TimerState): string {
   const m = Math.floor(seconds / 60)
   const sec = seconds % 60
   return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+}
+
+/** Full timer state plus the one-second pulse display components need to tick. */
+export function useTickingTimer(): TimerState {
+  useClock((s) => s.now)
+  return useTimer()
 }

@@ -65,6 +65,11 @@ try {
   await page.waitForURL(/\/instrument/)
   await page.locator('.dial-shell').waitFor({ state: 'visible' })
   results.push('one-tap launch opens the dial')
+  const beforeTick = await page.locator('.dial-value').innerText()
+  await page.waitForTimeout(2300)
+  const afterTick = await page.locator('.dial-value').innerText()
+  if (beforeTick === afterTick) failures.push('timer did not tick without another click')
+  else results.push(`timer counts down on its own (${beforeTick} → ${afterTick})`)
 
   await page.goto(BASE + '/notes', { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: /New page/ }).first().click()
